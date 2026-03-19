@@ -251,11 +251,11 @@ static void ScanAllMuxChannels(void)
                 continue;
             }
 
-            HAL_Delay(1);
+            HAL_Delay(25);
 
             {
                 uint16_t raw = ADC1_ReadRawSettled();
-                float voltage = (3.3f * (float)raw) / 4095.0f;
+                float voltage = (3.0f * (float)raw) / 4095.0f;
                 float temp_c = SensorVoltageToTempC(voltage);
 
                 printf("MUX%u CH%02u %-8s : ADC=%4u  V=%.3f  T=%.1f C\r\n",
@@ -271,6 +271,9 @@ static void ScanAllMuxChannels(void)
 
     MUX_DisableAll();
 }
+
+// temp501
+// temp 511
 
 /* USER CODE END 0 */
 
@@ -315,12 +318,13 @@ int main(void)
   printf("\r\n--- Temp mux scan start ---\r\n");
   /* USER CODE END 2 */
 
-  HAL_Delay(13);
+  HAL_Delay(10);
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
     ScanAllMuxChannels();
     printf("--- sweep done ---\r\n\r\n");
     HAL_Delay(1000);
@@ -464,7 +468,7 @@ static void MX_SPI1_Init(void)
 
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi1.Init.Direction = SPI_DIRECTION_1LINE;
   hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
