@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdbool.h>
 
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
@@ -22,6 +23,15 @@ typedef enum
     MUX2 = 1,
     MUX3 = 2
 } mux_id_t;
+
+typedef struct {
+	int16_t min_temp;
+	int16_t max_temp;
+	int16_t avg_temp;
+	uint8_t min_channel;
+	uint8_t max_channel;
+	uint8_t num_enabled;
+} TempStatistics_t;
 /* USER CODE END PTD */
 
 /* USER CODE BEGIN PD */
@@ -46,6 +56,10 @@ static GPIO_TypeDef *const mux_sync_port[NUM_MUXES] =
 {
     GPIOB, GPIOB, GPIOB
 };
+
+static CAN_TxHeaderTypeDef TxHeader;
+static uint8_t TxData[8];
+static uint32_t TxMailbox;
 
 static const uint16_t mux_sync_pin[NUM_MUXES] =
 {
@@ -97,10 +111,73 @@ static HAL_StatusTypeDef MUX_SelectChannel(mux_id_t mux, uint8_t channel);
 static uint16_t ADC1_ReadRaw(void);
 static uint16_t ADC1_ReadRawSettled(void);
 static float SensorVoltageToTempC(float voltage);
-static void ScanAllMuxChannels(void);
+static void ScanAllMuxChannels(TempStatistics_t *stats, bool report);
+static void CAN_Init_Filter(void);
+static HAL_StatusTypeDef CAN_SendTemperatureStatistics(TempStatistics_t *stats);
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
+static HAL_StatusTypeDef
+CAN_SendTemperatureStatistics(TempStatistics_t *stats)
+{
+    TxHeader.ExtId = 0x1839F380;
+    TxHeader.IDE = CAN_ID_EXT;
+    TxHeader.RTR = CAN_RTR_DATA;
+    TxHeader.DLC = 8u;
+    TxHeader.TransmitGlobalTime = DISABLE;
+
+    /* Clamp decidegree values to int8_t degree range before truncating */
+    int32_t lowest  = (int32_t)stats->min_temp / 10;
+    int32_t highest = (int32_t)stats->max_temp / 10;
+    int32_t average = (int32_t)stats->avg_temp / 10;
+
+    if (lowest  >  127) lowest  =  127;
+    if (lowest  < -128) lowest  = -128;
+    if (highest >  127) highest =  127;
+    if (highest < -128) highest = -128;
+    if (average >  127) average =  127;
+    if (average < -128) average = -128;
+
+//    TxData[0] = 1u;
+//    TxData[1] = (uint8_t)(int8_t)lowest;
+//    TxData[2] = (uint8_t)(int8_t)highest;
+//    TxData[3] = (uint8_t)(int8_t)average;
+//    TxData[4] = stats->num_enabled;
+//    TxData[5] = stats->max_channel;
+//    TxData[6] = stats->min_channel;
+    TxData[0] = 0;
+        TxData[1] = (uint8_t)(int8_t)lowest;
+        TxData[2] = (uint8_t)(int8_t)highest;
+        TxData[3] = (uint8_t)(int8_t)average;
+        TxData[4] = 1;
+        TxData[5] = 1;
+        TxData[6] = 0;
+
+    /* Checksum = sum of bytes 0–6, no seed                            */
+    uint8_t checksum = 0u;
+    for (uint8_t i = 0u; i < 7u; i++)
+        checksum += TxData[i];
+    TxData[7] = checksum + 65;
+
+    return HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
+}
+
+static void CAN_Init_Filter(void) {
+  CAN_FilterTypeDef f = {0};
+  f.FilterActivation = CAN_FILTER_ENABLE;
+  f.FilterBank = 0u;
+  f.FilterFIFOAssignment = CAN_RX_FIFO0;
+  f.FilterIdHigh = 0x0000u;
+  f.FilterIdLow = 0x0000u;
+  f.FilterMaskIdHigh = 0x0000u;
+  f.FilterMaskIdLow = 0x0000u;
+  f.FilterMode = CAN_FILTERMODE_IDMASK;
+  f.FilterScale = CAN_FILTERSCALE_32BIT;
+  f.SlaveStartFilterBank = 14u;
+
+  if (HAL_CAN_ConfigFilter(&hcan, &f) != HAL_OK)
+    Error_Handler();
+}
 
 static void ADC1_SetLongSampleTime(void)
 {
@@ -236,36 +313,61 @@ static float SensorVoltageToTempC(float voltage)
 
 // 1.85 V
 
-static void ScanAllMuxChannels(void)
+static void ScanAllMuxChannels(TempStatistics_t *stats, bool report)
 {
     uint8_t mux;
     uint8_t ch;
 
     for (mux = 0; mux < NUM_MUXES; mux++)
     {
+    	float avg = 0;
         for (ch = 0; ch < MUX_CHANNELS_PER_CHIP; ch++)
         {
-            if (MUX_SelectChannel((mux_id_t)mux, ch) != HAL_OK)
-            {
-                printf("MUX %u CH %u: select failed\r\n", mux + 1U, ch + 1U);
-                continue;
-            }
+        	if (mux == 2 && ch > 25) {
+        		continue;
+        	}
+        	uint16_t sum = 0u;
 
-            HAL_Delay(25);
+        	if (MUX_SelectChannel((mux_id_t)mux, ch) != HAL_OK)
+			{
+				printf("MUX %u CH %u: select failed\r\n", mux + 1U, ch + 1U);
+				continue;
+			}
 
-            {
-                uint16_t raw = ADC1_ReadRawSettled();
-                float voltage = (3.0f * (float)raw) / 4095.0f;
-                float temp_c = SensorVoltageToTempC(voltage);
+			HAL_Delay(25);
 
-                printf("MUX%u CH%02u %-8s : ADC=%4u  V=%.3f  T=%.1f C\r\n",
-                       mux + 1U,
-                       ch + 1U,
-                       mux_names[mux][ch],
-                       raw,
-                       voltage,
-                       temp_c);
-            }
+        	for (int i = 0; i < 500; i++) {
+					uint16_t raw = ADC1_ReadRawSettled();
+					sum += raw;
+        	}
+        	sum = sum / 500; // individual channel average
+        	avg += sum; // 90 channel average
+			float voltage = (3.0f * (float)sum) / 4095.0f;
+			float temp_c = SensorVoltageToTempC(voltage);
+
+			if (temp_c < stats->min_temp) {
+				stats->min_temp = temp_c;
+			}
+
+			if (temp_c > stats->max_temp) {
+				stats->max_temp = temp_c;
+			}
+
+			printf("MUX%u CH%02u %-8s : ADC=%4u  V=%.3f  T=%.1f C\r\n",
+				   mux + 1U,
+				   ch + 1U,
+				   mux_names[mux][ch],
+				   sum,
+				   voltage,
+				   temp_c);
+        }
+        avg = avg / (NUM_MUXES * MUX_CHANNELS_PER_CHIP);
+        stats->avg_temp = avg;
+
+        if (report) {
+        	stats->min_temp = 400;
+        	stats->max_temp = 450;
+            CAN_SendTemperatureStatistics(stats);
         }
     }
 
@@ -305,6 +407,9 @@ int main(void)
   MX_CAN_Init();
   MX_TIM4_Init();
 
+  CAN_Init_Filter();
+  HAL_CAN_Start(&hcan);
+
   /* USER CODE BEGIN 2 */
 
   if (HAL_ADCEx_Calibration_Start(&hadc1) != HAL_OK)
@@ -312,22 +417,42 @@ int main(void)
       Error_Handler();
   }
 
+  TempStatistics_t stats;
+
   ADC1_SetLongSampleTime();
   MUX_DisableAll();
 
-  printf("\r\n--- Temp mux scan start ---\r\n");
   /* USER CODE END 2 */
 
   HAL_Delay(10);
+
+  printf("\n\n--- start up ---\r\n");
+
+  ScanAllMuxChannels(&stats, false);
+  ScanAllMuxChannels(&stats, false);
+
+  printf("\n\n--- start up done ---\r\n");
+
+
+
+  printf("\r\n--- Temp mux scan start ---\r\n");
+
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
 
-    ScanAllMuxChannels();
+	stats.max_temp = -32768;
+	stats.min_temp = 32767;
+
+    ScanAllMuxChannels(&stats, true);
     printf("--- sweep done ---\r\n\r\n");
-    HAL_Delay(1000);
+//    HAL_Delay(1000);
+
+    stats.min_temp = 40;
+    stats.max_temp = 48;
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -361,7 +486,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
                               | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV16;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV2;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
@@ -426,33 +551,21 @@ static void MX_ADC1_Init(void)
   */
 static void MX_CAN_Init(void)
 {
-  /* USER CODE BEGIN CAN_Init 0 */
-  /* USER CODE END CAN_Init 0 */
-
-  /* USER CODE BEGIN CAN_Init 1 */
-  /* USER CODE END CAN_Init 1 */
-
-  hcan.Instance = CAN1;
-  hcan.Init.Prescaler = 16;
-  hcan.Init.Mode = CAN_MODE_NORMAL;
-  hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
-  hcan.Init.TimeSeg1 = CAN_BS1_1TQ;
-  hcan.Init.TimeSeg2 = CAN_BS2_1TQ;
-  hcan.Init.TimeTriggeredMode = DISABLE;
-  hcan.Init.AutoBusOff = DISABLE;
-  hcan.Init.AutoWakeUp = DISABLE;
-  hcan.Init.AutoRetransmission = DISABLE;
-  hcan.Init.ReceiveFifoLocked = DISABLE;
-  hcan.Init.TransmitFifoPriority = DISABLE;
-  if (HAL_CAN_Init(&hcan) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /* USER CODE BEGIN CAN_Init 2 */
-  /* USER CODE END CAN_Init 2 */
+    hcan.Instance = CAN1;
+    hcan.Init.Prescaler = 3;                  /* was 2 → gave 750 kbps    */
+    hcan.Init.Mode = CAN_MODE_NORMAL;
+    hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
+    hcan.Init.TimeSeg1 = CAN_BS1_13TQ;
+    hcan.Init.TimeSeg2 = CAN_BS2_4TQ;
+    hcan.Init.TimeTriggeredMode = DISABLE;
+    hcan.Init.AutoBusOff = DISABLE;
+    hcan.Init.AutoWakeUp = DISABLE;
+    hcan.Init.AutoRetransmission = DISABLE;
+    hcan.Init.ReceiveFifoLocked = DISABLE;
+    hcan.Init.TransmitFifoPriority = DISABLE;
+    if (HAL_CAN_Init(&hcan) != HAL_OK)
+        Error_Handler();
 }
-
 /**
   * @brief SPI1 Initialization Function
   * @param None
@@ -568,25 +681,21 @@ static void MX_USART1_UART_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
 
-  /* USER CODE BEGIN MX_GPIO_Init_1 */
-  /* USER CODE END MX_GPIO_Init_1 */
+    __HAL_RCC_GPIOD_CLK_ENABLE();
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
 
-  __HAL_RCC_GPIOD_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
+    /* SET first — open-drain high = released = mux SYNC deasserted    */
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2,
+                      GPIO_PIN_SET);
 
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2, GPIO_PIN_RESET);
-
-  GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /* USER CODE BEGIN MX_GPIO_Init_2 */
-  /* USER CODE END MX_GPIO_Init_2 */
+    GPIO_InitStruct.Pin   = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2;
+    GPIO_InitStruct.Mode  = GPIO_MODE_OUTPUT_OD;
+    GPIO_InitStruct.Pull  = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 }
 
 /* USER CODE BEGIN 4 */
