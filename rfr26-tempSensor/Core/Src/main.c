@@ -113,6 +113,7 @@ static float SensorVoltageToTempC(float voltage);
 static void ScanAllMuxChannels(TempStatistics_t *stats, bool report);
 static void CAN_Init_Filter(void);
 static HAL_StatusTypeDef CAN_SendTemperatureStatistics(TempStatistics_t *stats);
+static HAL_StatusTypeDef CAN_SendChannelTemp(uint8_t  id, uint8_t temp[7]);
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
@@ -123,6 +124,30 @@ int _write(int file, char *ptr, int len) {
 	return len;
 }
 #endif
+
+static HAL_StatusTypeDef CAN_SendChannelTemp(uint8_t id, uint8_t temp[7]) {
+	TxHeader.ExtId = id;
+	TxHeader.IDE = CAN_ID_EXT;
+	TxHeader.RTR = CAN_RTR_DATA;
+	TxHeader.DLC = 8u;
+	TxHeader.TransmitGlobalTime = DISABLE;
+
+	TxData[0] = (uint8_t) (int8_t) temp[0];
+	TxData[1] = (uint8_t) (int8_t) temp[1];
+	TxData[2] = (uint8_t) (int8_t) temp[2];
+	TxData[3] = (uint8_t) (int8_t) temp[3];
+	TxData[4] = (uint8_t) (int8_t) temp[4];
+	TxData[5] = (uint8_t) (int8_t) temp[5];
+	TxData[6] = (uint8_t) (int8_t) temp[6];
+
+	/* Checksum = sum of bytes 0–6, no seed                            */
+	uint8_t checksum = 0u;
+	for (uint8_t i = 0u; i < 7u; i++)
+		checksum += TxData[i];
+	TxData[7] = checksum + 65;
+
+	return HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
+}
 
 static HAL_StatusTypeDef CAN_SendTemperatureStatistics(TempStatistics_t *stats) {
 	TxHeader.ExtId = 0x1839F380;
@@ -149,13 +174,6 @@ static HAL_StatusTypeDef CAN_SendTemperatureStatistics(TempStatistics_t *stats) 
 	if (average < -128)
 		average = -128;
 
-//    TxData[0] = 1u;
-//    TxData[1] = (uint8_t)(int8_t)lowest;
-//    TxData[2] = (uint8_t)(int8_t)highest;
-//    TxData[3] = (uint8_t)(int8_t)average;
-//    TxData[4] = stats->num_enabled;
-//    TxData[5] = stats->max_channel;
-//    TxData[6] = stats->min_channel;
 	TxData[0] = 0;
 	TxData[1] = (uint8_t) (int8_t) lowest;
 	TxData[2] = (uint8_t) (int8_t) highest;
@@ -311,46 +329,83 @@ static float SensorVoltageToTempC(float voltage) {
 static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
 	uint8_t mux;
 	uint8_t ch;
+	uint8_t temps[7] = {0};
+	uint8_t packet_count = 0;
+	uint8_t packet_start_channel = 0;
+	uint8_t overall_channel = 0;
 
 	for (mux = 0; mux < NUM_MUXES; mux++) {
-		float avg = 0;
-		for (ch = 0; ch < MUX_CHANNELS_PER_CHIP; ch++) {
-			if (mux == 2 && ch > 25) {
-				continue;
-			}
-			uint16_t sum = 0u;
+	    float avg = 0;
 
-			if (MUX_SelectChannel((mux_id_t) mux, ch) != HAL_OK) {
-				continue;
-			}
+	    for (ch = 0; ch < MUX_CHANNELS_PER_CHIP; ch++) {
+	        if (mux == 2 && ch > 25) {
+	            continue;
+	        }
 
-			HAL_Delay(25);
+	        uint16_t sum = 0u;
 
-			for (int i = 0; i < 500; i++) {
-				uint16_t raw = ADC1_ReadRawSettled();
-				sum += raw;
-			}
-			sum = sum / 500; // individual channel average
-			avg += sum; // 90 channel average
-			float voltage = (3.0f * (float) sum) / 4095.0f;
-			float temp_c = SensorVoltageToTempC(voltage);
+	        if (MUX_SelectChannel((mux_id_t)mux, ch) != HAL_OK) {
+	            continue;
+	        }
 
-			if (temp_c < stats->min_temp) {
-				stats->min_temp = temp_c;
-			}
+	        HAL_Delay(25);
 
-			if (temp_c > stats->max_temp) {
-				stats->max_temp = temp_c;
-			}
-		}
-		avg = avg / 90;
-		stats->avg_temp = avg;
+	        for (int i = 0; i < 500; i++) {
+	            uint16_t raw = ADC1_ReadRawSettled();
+	            sum += raw;
+	        }
 
-		if (report) {
-			stats->min_temp = 400;
-			stats->max_temp = 450;
-			CAN_SendTemperatureStatistics(stats);
-		}
+	        sum = sum / 500;
+	        avg += sum;
+
+	        float voltage = (3.0f * (float)sum) / 4095.0f;
+	        float temp_c = SensorVoltageToTempC(voltage);
+
+	        if (temp_c < stats->min_temp) {
+	            stats->min_temp = temp_c;
+	        }
+
+	        if (temp_c > stats->max_temp) {
+	            stats->max_temp = temp_c;
+	        }
+
+	        // store first channel index for this packet
+	        if (packet_count == 0) {
+	            packet_start_channel = overall_channel;
+	        }
+
+	        // example conversion to int8/uint8 form
+	        temps[packet_count] = (uint8_t) temp_c;
+
+	        packet_count++;
+
+	        // send once 7 channels are collected
+	        if (packet_count == 7) {
+	            CAN_SendChannelTemp(packet_start_channel+1, temps);
+
+	            packet_count = 0;
+	        }
+
+	        overall_channel++;
+	    }
+
+	    avg = avg / 90;
+	    stats->avg_temp = avg;
+
+	    if (report) {
+	        stats->min_temp = 420;
+	        stats->max_temp = 450;
+	        CAN_SendTemperatureStatistics(stats);
+	    }
+	}
+
+	// send leftover channels at the end
+	if (packet_count > 0) {
+	    for (uint8_t i = packet_count; i < 7; i++) {
+	        temps[i] = 0xFF;
+	    }
+
+	    CAN_SendChannelTemp(packet_start_channel, temps);
 	}
 
 	MUX_DisableAll();
