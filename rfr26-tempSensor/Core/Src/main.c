@@ -3,15 +3,16 @@
  ******************************************************************************
  * @file           : main.c
  * @brief          : Main program body
+ * @author		   : Jeevan Shah
  ******************************************************************************
  */
 /* USER CODE END Header */
 
 #include "main.h"
-//#include <stdio.h>
+// #include <stdio.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
-#include <stdbool.h>
 
 /* USER CODE BEGIN Includes */
 /* USER CODE END Includes */
@@ -32,10 +33,10 @@ typedef struct {
 /* USER CODE END PTD */
 
 /* USER CODE BEGIN PD */
-#define NUM_MUXES               3U
-#define MUX_CHANNELS_PER_CHIP   32U
-#define MUX_DISABLE_CMD         0x80U
-//#define USE_SEMIHOSTING			true
+#define NUM_MUXES 3U
+#define MUX_CHANNELS_PER_CHIP 32U
+#define MUX_DISABLE_CMD 0x80U
+// #define USE_SEMIHOSTING			true
 /* USER CODE END PD */
 
 ADC_HandleTypeDef hadc1;
@@ -49,42 +50,25 @@ TIM_HandleTypeDef htim4;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
-static GPIO_TypeDef *const mux_sync_port[NUM_MUXES] = {
-GPIOB, GPIOB, GPIOB };
+static GPIO_TypeDef *const mux_sync_port[NUM_MUXES] = { GPIOB, GPIOB, GPIOB };
 
 static CAN_TxHeaderTypeDef TxHeader;
 static uint8_t TxData[8];
 static uint32_t TxMailbox;
 
-static const uint16_t mux_sync_pin[NUM_MUXES] = {
-GPIO_PIN_0,
-GPIO_PIN_1,
+static const uint16_t mux_sync_pin[NUM_MUXES] = { GPIO_PIN_0, GPIO_PIN_1,
 GPIO_PIN_2 };
 
-/*
-static const char *const mux_names[NUM_MUXES][MUX_CHANNELS_PER_CHIP] =
-		{
-				{ "TEMP101", "TEMP102", "TEMP103", "TEMP104", "TEMP105",
-						"TEMP106", "TEMP107", "TEMP108", "TEMP109", "TEMP110",
-						"TEMP111", "TEMP112", "TEMP113", "TEMP114", "TEMP115",
-						"TEMP116", "TEMP117", "TEMP118", "TEMP201", "TEMP202",
-						"TEMP203", "TEMP204", "TEMP205", "TEMP206", "TEMP207",
-						"TEMP208", "TEMP209", "TEMP210", "TEMP211", "TEMP212",
-						"TEMP213", "TEMP214" }, { "TEMP215", "TEMP216",
-						"TEMP217", "TEMP218", "TEMP301", "TEMP302", "TEMP303",
-						"TEMP304", "TEMP305", "TEMP306", "TEMP307", "TEMP308",
-						"TEMP309", "TEMP310", "TEMP311", "TEMP312", "TEMP313",
-						"TEMP314", "TEMP315", "TEMP316", "TEMP317", "TEMP318",
-						"TEMP401", "TEMP402", "TEMP403", "TEMP404", "TEMP405",
-						"TEMP406", "TEMP407", "TEMP408", "TEMP409", "TEMP410" },
-				{ "TEMP411", "TEMP412", "TEMP413", "TEMP414", "TEMP415",
-						"TEMP416", "TEMP417", "TEMP418", "TEMP501", "TEMP502",
-						"TEMP503", "TEMP504", "TEMP505", "TEMP506", "TEMP507",
-						"TEMP508", "TEMP509", "TEMP510", "TEMP511", "TEMP512",
-						"TEMP513", "TEMP514", "TEMP515", "TEMP516", "TEMP517",
-						"TEMP518", "UNUSED27", "UNUSED28", "UNUSED29",
-						"UNUSED30", "UNUSED31", "UNUSED32" } };
-*/
+//static const uint16_t mux_names[NUM_MUXES][MUX_CHANNELS_PER_CHIP] = {
+//    {101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111,
+//     112, 113, 114, 115, 116, 117, 118, 201, 202, 203, 204,
+//     205, 206, 207, 208, 209, 210, 211, 212, 213, 214},
+//    {215, 216, 217, 218, 301, 302, 303, 304, 305, 306, 307,
+//     308, 309, 310, 311, 312, 313, 314, 315, 316, 317, 318,
+//     401, 402, 403, 404, 405, 406, 407, 408, 409, 410},
+//    {411, 412, 413, 414, 415, 416, 417, 418, 501, 502, 503,
+//     504, 505, 506, 507, 508, 509, 510, 511, 512, 513, 514,
+//     515, 516, 517, 518, 27,  28,  29,  30,  31,  32}};
 
 /* USER CODE END PV */
 
@@ -113,7 +97,7 @@ static float SensorVoltageToTempC(float voltage);
 static void ScanAllMuxChannels(TempStatistics_t *stats, bool report);
 static void CAN_Init_Filter(void);
 static HAL_StatusTypeDef CAN_SendTemperatureStatistics(TempStatistics_t *stats);
-static HAL_StatusTypeDef CAN_SendChannelTemp(uint8_t  id, uint8_t temp[7]);
+static HAL_StatusTypeDef CAN_SendChannelTemp(uint8_t id, uint8_t temp[7]);
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
@@ -156,28 +140,10 @@ static HAL_StatusTypeDef CAN_SendTemperatureStatistics(TempStatistics_t *stats) 
 	TxHeader.DLC = 8u;
 	TxHeader.TransmitGlobalTime = DISABLE;
 
-	/* Clamp decidegree values to int8_t degree range before truncating */
-	int32_t lowest = (int32_t) stats->min_temp / 10;
-	int32_t highest = (int32_t) stats->max_temp / 10;
-	int32_t average = (int32_t) stats->avg_temp / 10;
-
-	if (lowest > 127)
-		lowest = 127;
-	if (lowest < -128)
-		lowest = -128;
-	if (highest > 127)
-		highest = 127;
-	if (highest < -128)
-		highest = -128;
-	if (average > 127)
-		average = 127;
-	if (average < -128)
-		average = -128;
-
 	TxData[0] = 0;
-	TxData[1] = (uint8_t) (int8_t) lowest;
-	TxData[2] = (uint8_t) (int8_t) highest;
-	TxData[3] = (uint8_t) (int8_t) average;
+	TxData[1] = (uint8_t) (int8_t) stats->min_temp;
+	TxData[2] = (uint8_t) (int8_t) stats->max_temp;
+	TxData[3] = (uint8_t) (int8_t) 67;
 	TxData[4] = 1;
 	TxData[5] = 1;
 	TxData[6] = 0;
@@ -324,88 +290,99 @@ static float SensorVoltageToTempC(float voltage) {
 	return -999.0f;
 }
 
-// 1.85 V
-
 static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
 	uint8_t mux;
 	uint8_t ch;
-	uint8_t temps[7] = {0};
+	uint8_t temps[7] = { 0 };
 	uint8_t packet_count = 0;
 	uint8_t packet_start_channel = 0;
 	uint8_t overall_channel = 0;
+	int8_t highTemps = 0;
 
 	for (mux = 0; mux < NUM_MUXES; mux++) {
-	    float avg = 0;
+		for (ch = 0; ch < MUX_CHANNELS_PER_CHIP; ch++) {
+			if (mux == 2 && ch > 25) {
+				continue;
+			}
 
-	    for (ch = 0; ch < MUX_CHANNELS_PER_CHIP; ch++) {
-	        if (mux == 2 && ch > 25) {
-	            continue;
-	        }
+			int32_t faults = 0u;
+			uint32_t sum = 0u;
+			uint16_t count = 0u;
 
-	        uint16_t sum = 0u;
+			if (MUX_SelectChannel((mux_id_t) mux, ch) != HAL_OK) {
+				continue;
+			}
 
-	        if (MUX_SelectChannel((mux_id_t)mux, ch) != HAL_OK) {
-	            continue;
-	        }
+			HAL_Delay(25);
 
-	        HAL_Delay(25);
+			for (int i = 0; i < 500; i++) {
+				uint16_t raw = ADC1_ReadRawSettled();
+				if (raw <= 1911 || raw >= 2962) {
+					faults++;
+					continue;
+				}
+				sum += raw;
+				count++;
+			}
 
-	        for (int i = 0; i < 500; i++) {
-	            uint16_t raw = ADC1_ReadRawSettled();
-	            sum += raw;
-	        }
+			float temp_c;
 
-	        sum = sum / 500;
-	        avg += sum;
+			if (faults >= 425) {
+				temp_c = 120;
+				highTemps++;
+			} else {
+				sum = sum / count;
 
-	        float voltage = (3.0f * (float)sum) / 4095.0f;
-	        float temp_c = SensorVoltageToTempC(voltage);
+				float voltage = (3.0f * (float) sum) / 4095.0f;
+				temp_c = SensorVoltageToTempC(voltage);
 
-	        if (temp_c < stats->min_temp) {
-	            stats->min_temp = temp_c;
-	        }
+				if (temp_c > 0 && temp_c < 85) {
+					if (temp_c < stats->min_temp) {
+						stats->min_temp = (int16_t) temp_c;
+						stats->min_channel = 32 * mux + ch;
+					}
+					if (temp_c > stats->max_temp) {
+						stats->max_temp = (int16_t) temp_c;
+						stats->max_channel = 32 * mux + ch;
+					}
+				}
+			}
 
-	        if (temp_c > stats->max_temp) {
-	            stats->max_temp = temp_c;
-	        }
+			if (packet_count == 0) {
+				packet_start_channel = overall_channel;
+			}
 
-	        // store first channel index for this packet
-	        if (packet_count == 0) {
-	            packet_start_channel = overall_channel;
-	        }
+			temps[packet_count] = (uint8_t) temp_c;
+			packet_count++;
 
-	        // example conversion to int8/uint8 form
-	        temps[packet_count] = (uint8_t) temp_c;
+			// send once 7 channels are collected
+			if (packet_count == 7) {
+				CAN_SendChannelTemp(packet_start_channel + 1, temps);
 
-	        packet_count++;
+				packet_count = 0;
+			}
 
-	        // send once 7 channels are collected
-	        if (packet_count == 7) {
-	            CAN_SendChannelTemp(packet_start_channel+1, temps);
+			overall_channel++;
 
-	            packet_count = 0;
-	        }
+			if (report) {
+				CAN_SendTemperatureStatistics(stats);
+			}
+		}
+	}
 
-	        overall_channel++;
-	    }
-
-	    avg = avg / 90;
-	    stats->avg_temp = avg;
-
-	    if (report) {
-	        stats->min_temp = 420;
-	        stats->max_temp = 450;
-	        CAN_SendTemperatureStatistics(stats);
-	    }
+	if (highTemps >= 76) {
+		stats->max_temp = 120;
+		stats->min_temp = 120;
+		CAN_SendTemperatureStatistics(stats);
 	}
 
 	// send leftover channels at the end
 	if (packet_count > 0) {
-	    for (uint8_t i = packet_count; i < 7; i++) {
-	        temps[i] = 0xFF;
-	    }
+		for (uint8_t i = packet_count; i < 7; i++) {
+			temps[i] = 0xFF;
+		}
 
-	    CAN_SendChannelTemp(packet_start_channel, temps);
+		CAN_SendChannelTemp(packet_start_channel, temps);
 	}
 
 	MUX_DisableAll();
@@ -422,8 +399,8 @@ int main(void) {
 	/* USER CODE END 1 */
 
 #ifdef USE_SEMIHOSTING
-		initialise_monitor_handles();
-	#endif
+  initialise_monitor_handles();
+#endif
 	HAL_Init();
 
 	/* USER CODE BEGIN Init */
@@ -459,23 +436,20 @@ int main(void) {
 
 	HAL_Delay(10);
 
-	ScanAllMuxChannels(&stats, false);
-	ScanAllMuxChannels(&stats, false);
+	stats.min_temp = 300;
+	stats.max_temp = -300;
+	stats.avg_temp = 0;
+	stats.min_channel = 0;
+	stats.max_channel = 0;
+	stats.num_enabled = 0;
 
+	ScanAllMuxChannels(&stats, false);
+	ScanAllMuxChannels(&stats, false);
 
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
 	while (1) {
-
-		stats.min_temp = 32767;
-		stats.max_temp = -32768;
-		stats.avg_temp = 0;
-		stats.min_channel = 0;
-		stats.max_channel = 0;
-		stats.num_enabled = 0;
-
 		ScanAllMuxChannels(&stats, true);
-
 
 		/* USER CODE END WHILE */
 
@@ -505,8 +479,8 @@ void SystemClock_Config(void) {
 		Error_Handler();
 	}
 
-	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
-			| RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK |
+	RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
 	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
 	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV2;
 	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
@@ -723,14 +697,13 @@ void Error_Handler(void) {
 
 #ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
-void assert_failed(uint8_t *file, uint32_t line)
-{
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
+void assert_failed(uint8_t *file, uint32_t line) {
   /* USER CODE BEGIN 6 */
   (void)file;
   (void)line;
