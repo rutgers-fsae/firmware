@@ -48,9 +48,9 @@ void setup() {
   }
 
   if (DECODE) {
-    for (int i = 0; i < EEPROME.length(); i++) {
+    for (int i = 0; i < EEPROM.length(); i++) {
       int address = i * (int)sizeof(uint16_t);
-      float t = decodeTemp10(EEPROM.read(address))
+      float t = decodeTemp10(EEPROM.read(address));
 
       // Print readable output
       Serial.print("T1: ");
