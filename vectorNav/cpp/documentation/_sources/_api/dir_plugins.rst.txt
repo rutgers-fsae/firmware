@@ -1,0 +1,20 @@
+.. _dir_plugins:
+
+
+Directory plugins
+=================
+
+
+*Directory path:* ``plugins``
+
+Subdirectories
+--------------
+
+- :ref:`dir_plugins_DataExport`
+- :ref:`dir_plugins_FirmwareProgrammer`
+- :ref:`dir_plugins_Logger`
+- :ref:`dir_plugins_Math`
+- :ref:`dir_plugins_RegisterScan`
+
+
+
