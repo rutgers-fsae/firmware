@@ -1,9 +1,9 @@
 #include <math.h>
 #include <EEPROM.h>
 
-#define CLEAR_EEPROM true // set to true to clear any stored data
+#define CLEAR_EEPROM false // set to true to clear any stored data during startup
 #define DELTA_TIME 100 // time in milliseconds between each sample
-#define DECODE false // set to true to print out stored data
+#define DECODE true // set to true to print out stored data
 
 uint8_t pumpDuty = 40;   // Pump duty cycle (0–100)
 uint8_t fanDuty = 50;     // Fan duty cycle (0–100)
@@ -31,6 +31,14 @@ float decodeTemp10(uint16_t value) {
   return value / 10.0f;
 }
 
+float adcToTemp(uint8_t pin) {
+  adc1 = analogRead(pin);
+  voltage1 = adc1 * (5.0 / 1023.0);
+  R_therm1 = R_fixed * (voltage1 / (5.0 - voltage1));
+  tK1 = 1.0 / ((1.0/T0) + (1.0/Beta) * log(R_therm1/R0));
+  tC1 = tK1 - 273.15 + tempTune;
+  return tC1;
+}
 
 void setup() {
   pinMode(9, OUTPUT);   // Pump
@@ -40,23 +48,30 @@ void setup() {
   digitalWrite(11, HIGH);
   delayMicroseconds(3000);
 
-  // clear stored data
-  if (CLEAR_EEPROM) {
-    for (int i = 0; i < EEPROM.length(); i++) {
-      EEPROM.write(i, 0);
-    }
-  }
+
 
   if (DECODE) {
-    for (int i = 0; i < EEPROM.length(); i++) {
+    Serial.println("\n\n========== START READ EEPROM ==========");
+    int sampleCount = EEPROM.length() / (int)sizeof(uint16_t);
+    for (int i = 0; i < sampleCount; i++) {
       int address = i * (int)sizeof(uint16_t);
-      float t = decodeTemp10(EEPROM.read(address));
+      uint16_t encodedTemp;
+      EEPROM.get(address, encodedTemp);
+      float t = decodeTemp10(encodedTemp);
 
       // Print readable output
       Serial.print("T1: ");
       Serial.print(t);
       Serial.println(" C   ");
+    }
+    Serial.println("========== END READ EEPROM ==========\n\n");
+    delay(500);
+  }
 
+  // clear stored data (do it after reading just to prevent data loss)
+  if (CLEAR_EEPROM) {
+    for (int i = 0; i < EEPROM.length(); i++) {
+      EEPROM.write(i, 0);
     }
   }
  
@@ -89,17 +104,18 @@ void setup() {
 
 void loop() {
 
+  while (DECODE) {
+    ;
+  }
+
   // --- Thermistor 1 ---
-  adc1 = analogRead(A0);
-  voltage1 = adc1 * (5.0 / 1023.0);
-  R_therm1 = R_fixed * (voltage1 / (5.0 - voltage1));
-  tK1 = 1.0 / ((1.0/T0) + (1.0/Beta) * log(R_therm1/R0));
-  tC1 = tK1 - 273.15 + tempTune;
 
   if (daq) {
     int sampleCount = EEPROM.length() / (int)sizeof(uint16_t);
+    Serial.println("\n\n========== START EEPROM WRITE ==========");
     for (int i = 0; i < sampleCount; i++) {
       delay(DELTA_TIME); // write data point every DELTA_TIME ms
+      tC1 = adcToTemp(A0);
       uint16_t encodedTemp = encodeTemp10(tC1);
       int address = i * (int)sizeof(uint16_t);
       EEPROM.put(address, encodedTemp);
@@ -109,8 +125,10 @@ void loop() {
       Serial.println(" C   ");
     }
     daq = false; // ensure we only write data for the length of EEPROM, don't want to overwrite anything
+    Serial.println("========== END EEPROM WRITE  ==========\n\n");
   }
 
+  tC1 = adcToTemp(A0);
 
   // Print readable output
   Serial.print("T1: ");
