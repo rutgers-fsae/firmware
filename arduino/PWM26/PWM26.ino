@@ -8,9 +8,9 @@ HOW TO USE THIS CODE FOR DAQ:
 #include <math.h>
 #include <EEPROM.h>
 
-#define CLEAR_EEPROM false // set to true to clear any stored data during startup
+#define CLEAR_EEPROM true // set to true to clear any stored data during startup
 #define DELTA_TIME 100 // time in milliseconds between each sample
-#define DECODE true // set to true to print out stored data
+#define DECODE false // set to true to print out stored data
 
 uint8_t pumpDuty = 40;   // Pump duty cycle (0–100)
 uint8_t fanDuty = 50;     // Fan duty cycle (0–100)
