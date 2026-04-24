@@ -1,3 +1,10 @@
+/*
+HOW TO USE THIS CODE FOR DAQ:
+  1. start by flashing the code with `CLEAR_EEPROM` set to `true` and `DECODE` set to `false`. let the code run until you see the serial monitor pause for 2 seconds and the "END EEPROM WRITE" message
+  2. now update `CLEAR_EEPROM` to `false` and `DECODE` to `true`. flash the code and run it to see the output of the stored data - after reading from the storage the code halts indefinitely
+  3. make sure to rever `DECODE` to `false` when done, failure to do so will result in the code not working
+*/
+
 #include <math.h>
 #include <EEPROM.h>
 
@@ -126,6 +133,7 @@ void loop() {
     }
     daq = false; // ensure we only write data for the length of EEPROM, don't want to overwrite anything
     Serial.println("========== END EEPROM WRITE  ==========\n\n");
+    delay(2000);
   }
 
   tC1 = adcToTemp(A0);
