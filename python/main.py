@@ -9,6 +9,7 @@ PORT = "/dev/cu.usbserial-DN8FHRI7"
 SERIAL_BAUD = 115200
 CAN_SPEED = 6
 LOG_FILE = "log.csv"
+START_TIME = time.time()
 
 ACK = b"\x06"
 BELL = b"\x07"
@@ -16,6 +17,7 @@ BELL = b"\x07"
 temps = [[], [], [], [], [], [], [], [], [], [], [], []]
 averages: list[list[int | float]] = [[], [], [], [], [], [], [], [], [], [], [], []]
 times: list[list[int | float]] = [[], [], [], [], [], [], [], [], [], [], [], []]
+
 
 
 def send_cmd(ser, cmd: str, delay=0.1):
@@ -54,13 +56,13 @@ def parse_frame(line: str):
             idx = int((can_id - 1) / 7)
             if idx < 0 or idx >= len(temps):
                 return None
-            temps[idx] = list(data)
+            temps[idx] = list(data[:7])
             t = time.time()
             averages[idx].append(np.average(temps[idx]))
             times[idx].append(t - t0)
 
             return {
-                "timestamp": datetime.now().isoformat(timespec="milliseconds"),
+                "timestamp": time.time() - START_TIME,
                 "id": can_id,
                 "id_hex": f"0x{can_id:03X}",
                 "extended": ext,
@@ -79,7 +81,15 @@ def main():
     ):
 
         writer = csv.writer(csvfile)
-        writer.writerow(["timestamp", "id_hex", "id_base_10", "dlc", "data_hex"])
+        writer.writerow(
+            [
+                "timestamp",
+                "id_hex",
+                "id_base_10",
+                "dlc",
+                *[f"bucket {i}" for i in range(7)],
+            ]
+        )
 
         # send_cmd(ser, "C")  # close if already open
         send_cmd(ser, f"S{CAN_SPEED}")  # set CAN baud rate
@@ -100,10 +110,10 @@ def main():
                     line, buf = buf.split("\r", 1)
                     frame = parse_frame(line)
                     if frame:
-                        # print(
-                        #     f"{frame['timestamp']}  {frame['id_hex']}  {int(frame['id_hex'], 0)}  "
-                        #     f"[{frame['dlc']}]  {frame['data_hex']}"
-                        # )
+                        print(
+                            f"{frame['timestamp']}  {frame['id_hex']}  {int(frame['id_hex'], 0)}  "
+                            f"[{frame['dlc']}]  {frame['data']}"
+                        )
                         print(temps)
                         writer.writerow(
                             [
@@ -111,7 +121,7 @@ def main():
                                 frame["id_hex"],
                                 int(frame["id_hex"], 0),
                                 frame["dlc"],
-                                frame["data_hex"],
+                                *frame["data"],
                             ]
                         )
                         csvfile.flush()
