@@ -4,13 +4,11 @@ import csv
 from datetime import datetime
 from rich import print
 import numpy as np
-import matplotlib.pyplot as plt
 
 PORT = "/dev/cu.usbserial-DN8FHRI7"
 SERIAL_BAUD = 115200
 CAN_SPEED = 6
 LOG_FILE = "log.csv"
-PLOT_UPDATE_INTERVAL = 0.2
 
 ACK = b"\x06"
 BELL = b"\x07"
@@ -30,7 +28,7 @@ def send_cmd(ser, cmd: str, delay=0.1):
 
 
 # TODO: average temps, plot vs time, seperate based on channel
-def parse_frame(line: str, start_time: float):
+def parse_frame(line: str):
     """
     Standard frame format from CANDapter:
       tIIILDD...DD   (standard 11-bit)
@@ -43,6 +41,8 @@ def parse_frame(line: str, start_time: float):
 
     try:
         if line[0] != "t":
+            t0 = time.time()
+
             can_id = int(line[1:9], 16)
             if can_id > 100:
                 return None
@@ -57,7 +57,7 @@ def parse_frame(line: str, start_time: float):
             temps[idx] = list(data)
             t = time.time()
             averages[idx].append(np.average(temps[idx]))
-            times[idx].append(t - start_time)
+            times[idx].append(t - t0)
 
             return {
                 "timestamp": datetime.now().isoformat(timespec="milliseconds"),
@@ -73,22 +73,6 @@ def parse_frame(line: str, start_time: float):
 
 
 def main():
-    plt.ion()
-    fig, ax = plt.subplots(figsize=(12, 7))
-    lines = []
-    for idx in range(len(averages)):
-        (line_plot,) = ax.plot([], [], label=f"Channel {idx}")
-        lines.append(line_plot)
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Average Temperature")
-    ax.set_title("Average Temperature vs Time")
-    ax.legend(loc="upper left", ncols=2)
-    ax.grid(True, alpha=0.3)
-    plt.show(block=False)
-
-    start_time = time.time()
-    last_plot_update = 0.0
-
     with (
         serial.Serial(PORT, SERIAL_BAUD, timeout=1) as ser,
         open(LOG_FILE, "w", newline="") as csvfile,
@@ -114,7 +98,7 @@ def main():
 
                 while "\r" in buf:
                     line, buf = buf.split("\r", 1)
-                    frame = parse_frame(line, start_time)
+                    frame = parse_frame(line)
                     if frame:
                         # print(
                         #     f"{frame['timestamp']}  {frame['id_hex']}  {int(frame['id_hex'], 0)}  "
@@ -132,20 +116,10 @@ def main():
                         )
                         csvfile.flush()
 
-                now = time.time()
-                if now - last_plot_update >= PLOT_UPDATE_INTERVAL:
-                    for idx, line_plot in enumerate(lines):
-                        line_plot.set_data(times[idx], averages[idx])
-                    ax.relim()
-                    ax.autoscale_view()
-                    plt.pause(0.001)
-                    last_plot_update = now
-
         except KeyboardInterrupt:
             print("\nStopping...")
         finally:
             send_cmd(ser, "C")
-            plt.ioff()
             print("CAN channel closed.")
 
 
