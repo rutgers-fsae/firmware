@@ -41,8 +41,15 @@ def make_figure(frame: pd.DataFrame, y_col: str, title: str, y_label: str):
         color="channel",
         title=title,
         labels={"timestamp": "Time (s)", y_col: y_label, "channel": "Channel"},
+        markers=True
     )
-    fig.update_layout(hovermode="x unified")
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="#0f172a",
+        plot_bgcolor="#111827",
+        font={"color": "#e5e7eb"},
+        legend={"bgcolor": "rgba(17,24,39,0.7)", "bordercolor": "#334155", "borderwidth": 1},
+    )
     return fig
 
 
@@ -78,11 +85,34 @@ app.layout = html.Div(
             value=default_channels,
             multi=True,
             placeholder="Select one or more channels",
+            className="dark-dropdown",
         ),
         html.Div(
             [
-                html.Button("Select all", id="select-all-btn", n_clicks=0),
-                html.Button("Clear", id="clear-btn", n_clicks=0),
+                html.Button(
+                    "Select all",
+                    id="select-all-btn",
+                    n_clicks=0,
+                    style={
+                        "backgroundColor": "#1d4ed8",
+                        "color": "#f8fafc",
+                        "border": "1px solid #3b82f6",
+                        "padding": "0.45rem 0.8rem",
+                        "borderRadius": "6px",
+                    },
+                ),
+                html.Button(
+                    "Clear",
+                    id="clear-btn",
+                    n_clicks=0,
+                    style={
+                        "backgroundColor": "#1f2937",
+                        "color": "#f8fafc",
+                        "border": "1px solid #334155",
+                        "padding": "0.45rem 0.8rem",
+                        "borderRadius": "6px",
+                    },
+                ),
             ],
             style={"display": "flex", "gap": "0.5rem", "margin": "0.75rem 0"},
         ),
@@ -98,13 +128,14 @@ app.layout = html.Div(
             searchable=True,
             placeholder="Select one channel for table",
             style={"maxWidth": "360px", "marginBottom": "0.5rem"},
+            className="dark-dropdown",
         ),
         dash_table.DataTable(
             id="temp-table",
             data=make_table_rows(initial_table_df),
             columns=[
                 {"name": "Channel", "id": "channel"},
-                {"name": "Temp", "id": "temp", "type": "numeric", "format": {"specifier": ".3f"}},
+                {"name": "Temp (c)", "id": "temp", "type": "numeric", "format": {"specifier": ".3f"}},
                 {
                     "name": "Time Recorded (since start)",
                     "id": "timestamp",
@@ -122,15 +153,16 @@ app.layout = html.Div(
                 "overflowY": "auto",
                 "overflowX": "auto",
                 "marginTop": "0.5rem",
-                "border": "1px solid #d9d9d9",
+                "border": "1px solid #334155",
                 "borderRadius": "6px",
+                "backgroundColor": "#0b1220",
             },
             style_header={
                 "fontWeight": "700",
-                "backgroundColor": "#e9eef5",
-                "color": "#1f2937",
+                "backgroundColor": "#1e293b",
+                "color": "#f8fafc",
                 "fontSize": "15px",
-                "border": "1px solid #d1d5db",
+                "border": "1px solid #334155",
             },
             style_cell={
                 "padding": "0.65rem",
@@ -140,18 +172,30 @@ app.layout = html.Div(
                 "maxWidth": "320px",
                 "fontSize": "14px",
                 "lineHeight": "1.4",
-                "color": "#111827",
-                "border": "1px solid #e5e7eb",
+                "color": "#e5e7eb",
+                "border": "1px solid #1e293b",
+                "backgroundColor": "#111827",
             },
             style_data_conditional=[
-                {"if": {"row_index": "odd"}, "backgroundColor": "#f8fafc"},
+                {"if": {"row_index": "odd"}, "backgroundColor": "#0f172a"},
                 {"if": {"column_id": "temp"}, "textAlign": "right"},
                 {"if": {"column_id": "timestamp"}, "textAlign": "right"},
             ],
-            style_filter={"fontSize": "14px", "padding": "0.45rem", "color": "#111827"},
+            style_filter={
+                "fontSize": "14px",
+                "padding": "0.45rem",
+                "color": "#e5e7eb",
+                "backgroundColor": "#0f172a",
+                "border": "1px solid #334155",
+            },
         ),
     ],
-    style={"padding": "0.75rem 1rem 1.5rem", "backgroundColor": "#fcfcfd"},
+    style={
+        "padding": "0.75rem 1rem 1.5rem",
+        "background": "linear-gradient(180deg, #020617 0%, #0f172a 100%)",
+        "color": "#e5e7eb",
+        "minHeight": "100vh",
+    },
 )
 
 

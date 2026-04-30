@@ -1,0 +1,50 @@
+.dark-dropdown .Select-control {
+  background-color: #111827;
+  border: 1px solid #334155;
+  color: #e5e7eb;
+}
+
+.dark-dropdown .Select-menu-outer {
+  background-color: #111827;
+  border: 1px solid #334155;
+}
+
+.dark-dropdown .Select-option {
+  background-color: #111827;
+  color: #e5e7eb;
+}
+
+.dark-dropdown .Select-option.is-focused {
+  background-color: #1e293b;
+}
+
+.dark-dropdown .Select-option.is-selected {
+  background-color: #1d4ed8;
+  color: #f8fafc;
+}
+
+.dark-dropdown .Select-value-label,
+.dark-dropdown .Select-placeholder,
+.dark-dropdown .Select-input > input {
+  color: #e5e7eb !important;
+}
+
+.dark-dropdown .Select--multi .Select-value {
+  background-color: #1e293b;
+  border-color: #334155;
+}
+
+.dark-dropdown .Select-arrow {
+  border-top-color: #cbd5e1;
+}
+
+.dark-dropdown .Select-clear {
+  color: #cbd5e1;
+}
+
+.dash-table-container .previous-next-container button,
+.dash-table-container .page-number input {
+  background-color: #111827;
+  color: #e5e7eb;
+  border: 1px solid #334155;
+}
