@@ -1,9 +1,7 @@
 import serial
 import time
 import csv
-from datetime import datetime
 from rich import print
-import numpy as np
 
 PORT = "/dev/cu.usbserial-DN8FHRI7"
 SERIAL_BAUD = 115200
@@ -14,10 +12,98 @@ START_TIME = time.time()
 ACK = b"\x06"
 BELL = b"\x07"
 
-temps = [[], [], [], [], [], [], [], [], [], [], [], []]
-averages: list[list[int | float]] = [[], [], [], [], [], [], [], [], [], [], [], []]
-times: list[list[int | float]] = [[], [], [], [], [], [], [], [], [], [], [], []]
+LABELS = [
+    "TEMP101",
+    "TEMP102",
+    "TEMP103",
+    "TEMP104",
+    "TEMP105",
+    "TEMP106",
+    "TEMP107",
+    "TEMP108",
+    "TEMP109",
+    "TEMP110",
+    "TEMP111",
+    "TEMP112",
+    "TEMP113",
+    "TEMP114",
+    "TEMP115",
+    "TEMP116",
+    "TEMP117",
+    "TEMP118",
+    "TEMP201",
+    "TEMP202",
+    "TEMP203",
+    "TEMP204",
+    "TEMP205",
+    "TEMP206",
+    "TEMP207",
+    "TEMP208",
+    "TEMP209",
+    "TEMP210",
+    "TEMP211",
+    "TEMP212",
+    "TEMP213",
+    "TEMP214",
+    "TEMP215",
+    "TEMP216",
+    "TEMP217",
+    "TEMP218",
+    "TEMP301",
+    "TEMP302",
+    "TEMP303",
+    "TEMP304",
+    "TEMP305",
+    "TEMP306",
+    "TEMP307",
+    "TEMP308",
+    "TEMP309",
+    "TEMP310",
+    "TEMP311",
+    "TEMP312",
+    "TEMP313",
+    "TEMP314",
+    "TEMP315",
+    "TEMP316",
+    "TEMP317",
+    "TEMP318",
+    "TEMP401",
+    "TEMP402",
+    "TEMP403",
+    "TEMP404",
+    "TEMP405",
+    "TEMP406",
+    "TEMP407",
+    "TEMP408",
+    "TEMP409",
+    "TEMP410",
+    "TEMP411",
+    "TEMP412",
+    "TEMP413",
+    "TEMP414",
+    "TEMP415",
+    "TEMP416",
+    "TEMP417",
+    "TEMP418",
+    "TEMP501",
+    "TEMP502",
+    "TEMP503",
+    "TEMP504",
+    "TEMP505",
+    "TEMP506",
+    "TEMP507",
+    "TEMP508",
+    "TEMP509",
+    "TEMP510",
+    "TEMP511",
+    "TEMP512",
+]
 
+temps = [0] * 90
+averages: list[list[float]] = [[] for _ in range(len(LABELS))]
+times: list[list[float]] = [[] for _ in range(len(LABELS))]
+running_sums = [0.0] * len(LABELS)
+running_counts = [0] * len(LABELS)
 
 
 def send_cmd(ser, cmd: str, delay=0.1):
@@ -43,32 +129,41 @@ def parse_frame(line: str):
 
     try:
         if line[0] != "t":
-            t0 = time.time()
-
             can_id = int(line[1:9], 16)
             if can_id > 100:
                 return None
 
-            dlc = int(line[9])
+            dlc = int(line[9], 16)
             data = bytes.fromhex(line[10 : 10 + dlc * 2])
-            ext = True
 
-            idx = int((can_id - 1) / 7)
-            if idx < 0 or idx >= len(temps):
+            idx = (can_id - 1) // 7
+            base = idx * 7
+            if base < 0 or base >= len(temps):
                 return None
-            temps[idx] = list(data[:7])
-            t = time.time()
-            averages[idx].append(np.average(temps[idx]))
-            times[idx].append(t - t0)
+
+            timestamp = time.time() - START_TIME
+            updated_indices: list[int] = []
+
+            for offset, value in enumerate(data[:7]):
+                sensor_idx = base + offset
+                if sensor_idx < 0 or sensor_idx >= len(temps):
+                    continue
+
+                temps[sensor_idx] = value
+
+                if sensor_idx < len(LABELS):
+                    running_sums[sensor_idx] += value
+                    running_counts[sensor_idx] += 1
+                    averages[sensor_idx].append(
+                        running_sums[sensor_idx] / running_counts[sensor_idx]
+                    )
+                    times[sensor_idx].append(timestamp)
+                    updated_indices.append(sensor_idx)
 
             return {
-                "timestamp": time.time() - START_TIME,
+                "timestamp": timestamp,
                 "id": can_id,
-                "id_hex": f"0x{can_id:03X}",
-                "extended": ext,
-                "dlc": dlc,
-                "data": temps[idx],
-                "data_hex": " ".join(str(b) for b in data),
+                "updated_indices": updated_indices,
             }
     except (ValueError, IndexError):
         return None
@@ -84,10 +179,8 @@ def main():
         writer.writerow(
             [
                 "timestamp",
-                "id_hex",
-                "id_base_10",
-                "dlc",
-                *[f"bucket {i}" for i in range(7)],
+                "channel",
+                "temp",
             ]
         )
 
@@ -110,20 +203,14 @@ def main():
                     line, buf = buf.split("\r", 1)
                     frame = parse_frame(line)
                     if frame:
-                        print(
-                            f"{frame['timestamp']}  {frame['id_hex']}  {int(frame['id_hex'], 0)}  "
-                            f"[{frame['dlc']}]  {frame['data']}"
-                        )
-                        print(temps)
-                        writer.writerow(
-                            [
-                                frame["timestamp"],
-                                frame["id_hex"],
-                                int(frame["id_hex"], 0),
-                                frame["dlc"],
-                                *frame["data"],
-                            ]
-                        )
+                        for sensor_idx in frame["updated_indices"]:
+                            writer.writerow(
+                                [
+                                    frame["timestamp"],
+                                    LABELS[sensor_idx],
+                                    temps[sensor_idx],
+                                ]
+                            )
                         csvfile.flush()
 
         except KeyboardInterrupt:
