@@ -12,7 +12,7 @@ HOW TO USE THIS CODE FOR DAQ:
 #define DELTA_TIME 100 // time in milliseconds between each sample
 #define DECODE false // set to true to print out stored data
 
-uint8_t pumpDuty = 40;   // Pump duty cycle (0–100)
+uint8_t pumpDuty = 5;   // Pump duty cycle (0–100)
 uint8_t fanDuty = 50;     // Fan duty cycle (0–100)
 
 bool daq = true; 
