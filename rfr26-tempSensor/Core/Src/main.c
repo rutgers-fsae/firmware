@@ -1,4 +1,3 @@
-/* USER CODE BEGIN Header */
 /**
  ******************************************************************************
  * @file           : main.c
@@ -6,7 +5,6 @@
  * @author		   : Jeevan Shah
  ******************************************************************************
  */
-/* USER CODE END Header */
 
 #include "main.h"
 // #include <stdio.h>
@@ -14,10 +12,6 @@
 #include <stdint.h>
 #include <string.h>
 
-/* USER CODE BEGIN Includes */
-/* USER CODE END Includes */
-
-/* USER CODE BEGIN PTD */
 typedef enum {
 	MUX1 = 0, MUX2 = 1, MUX3 = 2
 } mux_id_t;
@@ -30,14 +24,11 @@ typedef struct {
 	uint8_t max_channel;
 	uint8_t num_enabled;
 } TempStatistics_t;
-/* USER CODE END PTD */
 
-/* USER CODE BEGIN PD */
 #define NUM_MUXES 3U
 #define MUX_CHANNELS_PER_CHIP 32U
 #define MUX_DISABLE_CMD 0x80U
 // #define USE_SEMIHOSTING			true
-/* USER CODE END PD */
 
 ADC_HandleTypeDef hadc1;
 
@@ -49,7 +40,6 @@ TIM_HandleTypeDef htim4;
 
 UART_HandleTypeDef huart1;
 
-/* USER CODE BEGIN PV */
 static GPIO_TypeDef *const mux_sync_port[NUM_MUXES] = { GPIOB, GPIOB, GPIOB };
 
 static CAN_TxHeaderTypeDef TxHeader;
@@ -70,7 +60,6 @@ GPIO_PIN_2 };
 //     504, 505, 506, 507, 508, 509, 510, 511, 512, 513, 514,
 //     515, 516, 517, 518, 27,  28,  29,  30,  31,  32}};
 
-/* USER CODE END PV */
 
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
@@ -79,8 +68,6 @@ static void MX_SPI1_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_CAN_Init(void);
 static void MX_TIM4_Init(void);
-
-/* USER CODE BEGIN PFP */
 
 #ifdef USE_SEMIHOSTING
 extern void initialise_monitor_handles(void);
@@ -98,9 +85,7 @@ static void ScanAllMuxChannels(TempStatistics_t *stats, bool report);
 static void CAN_Init_Filter(void);
 static HAL_StatusTypeDef CAN_SendTemperatureStatistics(TempStatistics_t *stats);
 static HAL_StatusTypeDef CAN_SendChannelTemp(uint8_t id, uint8_t temp[7]);
-/* USER CODE END PFP */
 
-/* USER CODE BEGIN 0 */
 #ifndef USE_SEMIHOSTING
 int _write(int file, char *ptr, int len) {
 	(void) file;
@@ -109,6 +94,7 @@ int _write(int file, char *ptr, int len) {
 }
 #endif
 
+// send 7 individual channels temperatures through CAN
 static HAL_StatusTypeDef CAN_SendChannelTemp(uint8_t id, uint8_t temp[7]) {
 	TxHeader.ExtId = id;
 	TxHeader.IDE = CAN_ID_EXT;
@@ -124,7 +110,7 @@ static HAL_StatusTypeDef CAN_SendChannelTemp(uint8_t id, uint8_t temp[7]) {
 	TxData[5] = (uint8_t) (int8_t) temp[5];
 	TxData[6] = (uint8_t) (int8_t) temp[6];
 
-	/* Checksum = sum of bytes 0–6, no seed                            */
+	// Checksum = sum of bytes 0–6, no seed
 	uint8_t checksum = 0u;
 	for (uint8_t i = 0u; i < 7u; i++)
 		checksum += TxData[i];
@@ -133,6 +119,7 @@ static HAL_StatusTypeDef CAN_SendChannelTemp(uint8_t id, uint8_t temp[7]) {
 	return HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
 }
 
+// send the max/min temperatures to the BMS over CAN
 static HAL_StatusTypeDef CAN_SendTemperatureStatistics(TempStatistics_t *stats) {
 	TxHeader.ExtId = 0x1839F380;
 	TxHeader.IDE = CAN_ID_EXT;
@@ -148,7 +135,7 @@ static HAL_StatusTypeDef CAN_SendTemperatureStatistics(TempStatistics_t *stats) 
 	TxData[5] = 1;
 	TxData[6] = 0;
 
-	/* Checksum = sum of bytes 0–6, no seed                            */
+	// Checksum = sum of bytes 0–6, no seed
 	uint8_t checksum = 0u;
 	for (uint8_t i = 0u; i < 7u; i++)
 		checksum += TxData[i];
@@ -257,6 +244,7 @@ static uint16_t ADC1_ReadRawSettled(void) {
 	return ADC1_ReadRaw();
 }
 
+// use linear interperolation to convert voltage to temperature, based on data from datasheet
 static float SensorVoltageToTempC(float voltage) {
 	static const float temp_table[] = { -40, -35, -30, -25, -20, -15, -10, -5,
 			0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80,
@@ -290,6 +278,11 @@ static float SensorVoltageToTempC(float voltage) {
 	return -999.0f;
 }
 
+// finds the highest and lowest temperature of the 90 channels
+// uses 3 nested loops, the outermost to iterate through the 3 different multiplexers, 
+// the next to iterate through each channel on the multiplexer,
+// and then the innermost channel samples each channel 500 times in order for an average reading
+// over a period of 2ms (longer than the duration of the noise)
 static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
 	uint8_t mux;
 	uint8_t ch;
@@ -317,8 +310,8 @@ static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
 			HAL_Delay(25);
 
 			for (int i = 0; i < 500; i++) {
-				uint16_t raw = ADC1_ReadRawSettled();
-				if (raw <= 1911 || raw >= 2962) {
+				uint16_t raw = ADC1_ReadRawSettled(); // each sample takes 4µs
+				if (raw <= 1911 || raw >= 2962) { // only accept temps between 0 and 60C
 					faults++;
 					continue;
 				}
@@ -328,6 +321,7 @@ static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
 
 			float temp_c;
 
+      // if 85% of samples are outside the acceptable range set the channel temp to 120C
 			if (faults >= 425) {
 				temp_c = 120;
 				highTemps++;
@@ -365,6 +359,7 @@ static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
 
 			overall_channel++;
 
+      // conditional exists only for startup so that the BMS doesn't fault while temps are still being collected
 			if (report) {
 				if (stats->min_temp == 300 || stats->max_temp == -300) {
 					continue;
@@ -400,28 +395,18 @@ static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
 	MUX_DisableAll();
 }
 
-/* USER CODE END 0 */
 
 /**
  * @brief  The application entry point.
  * @retval int
  */
 int main(void) {
-	/* USER CODE BEGIN 1 */
-	/* USER CODE END 1 */
-
-#ifdef USE_SEMIHOSTING
-  initialise_monitor_handles();
-#endif
+  #ifdef USE_SEMIHOSTING
+    initialise_monitor_handles();
+  #endif
 	HAL_Init();
 
-	/* USER CODE BEGIN Init */
-	/* USER CODE END Init */
-
 	SystemClock_Config();
-
-	/* USER CODE BEGIN SysInit */
-	/* USER CODE END SysInit */
 
 	MX_GPIO_Init();
 	MX_ADC1_Init();
@@ -433,7 +418,6 @@ int main(void) {
 	CAN_Init_Filter();
 	HAL_CAN_Start(&hcan);
 
-	/* USER CODE BEGIN 2 */
 
 	if (HAL_ADCEx_Calibration_Start(&hadc1) != HAL_OK) {
 		Error_Handler();
@@ -444,8 +428,6 @@ int main(void) {
 
 	ADC1_SetLongSampleTime();
 	MUX_DisableAll();
-
-	/* USER CODE END 2 */
 
 	HAL_Delay(10);
 
@@ -461,25 +443,20 @@ int main(void) {
 	initial.max_channel = 0;
 	initial.num_enabled = 0;
 
+  // report 'fake' data upon startup
 	CAN_SendTemperatureStatistics(&initial);
 
+  // collect statistics without reporting them to calibrate the system
 	ScanAllMuxChannels(&stats, false);
 	ScanAllMuxChannels(&stats, false);
 
-	/* Infinite loop */
-	/* USER CODE BEGIN WHILE */
 	while (1) {
 		ScanAllMuxChannels(&stats, true);
 
+    // reset max/min temp after each loop to ensure accurate data is being reported
 		stats.min_temp = 300;
 		stats.max_temp = -300;
-
-		/* USER CODE END WHILE */
-
-		/* USER CODE BEGIN 3 */
-		/* USER CODE END 3 */
 	}
-	/* USER CODE END WHILE */
 }
 
 /**
@@ -530,12 +507,6 @@ void SystemClock_Config(void) {
 static void MX_ADC1_Init(void) {
 	ADC_ChannelConfTypeDef sConfig = { 0 };
 
-	/* USER CODE BEGIN ADC1_Init 0 */
-	/* USER CODE END ADC1_Init 0 */
-
-	/* USER CODE BEGIN ADC1_Init 1 */
-	/* USER CODE END ADC1_Init 1 */
-
 	hadc1.Instance = ADC1;
 	hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
 	hadc1.Init.ContinuousConvMode = DISABLE;
@@ -554,8 +525,6 @@ static void MX_ADC1_Init(void) {
 		Error_Handler();
 	}
 
-	/* USER CODE BEGIN ADC1_Init 2 */
-	/* USER CODE END ADC1_Init 2 */
 }
 
 /**
@@ -585,12 +554,6 @@ static void MX_CAN_Init(void) {
  * @retval None
  */
 static void MX_SPI1_Init(void) {
-	/* USER CODE BEGIN SPI1_Init 0 */
-	/* USER CODE END SPI1_Init 0 */
-
-	/* USER CODE BEGIN SPI1_Init 1 */
-	/* USER CODE END SPI1_Init 1 */
-
 	hspi1.Instance = SPI1;
 	hspi1.Init.Mode = SPI_MODE_MASTER;
 	hspi1.Init.Direction = SPI_DIRECTION_1LINE;
@@ -606,9 +569,6 @@ static void MX_SPI1_Init(void) {
 	if (HAL_SPI_Init(&hspi1) != HAL_OK) {
 		Error_Handler();
 	}
-
-	/* USER CODE BEGIN SPI1_Init 2 */
-	/* USER CODE END SPI1_Init 2 */
 }
 
 /**
@@ -619,12 +579,6 @@ static void MX_SPI1_Init(void) {
 static void MX_TIM4_Init(void) {
 	TIM_ClockConfigTypeDef sClockSourceConfig = { 0 };
 	TIM_MasterConfigTypeDef sMasterConfig = { 0 };
-
-	/* USER CODE BEGIN TIM4_Init 0 */
-	/* USER CODE END TIM4_Init 0 */
-
-	/* USER CODE BEGIN TIM4_Init 1 */
-	/* USER CODE END TIM4_Init 1 */
 
 	htim4.Instance = TIM4;
 	htim4.Init.Prescaler = 0;
@@ -647,9 +601,6 @@ static void MX_TIM4_Init(void) {
 			!= HAL_OK) {
 		Error_Handler();
 	}
-
-	/* USER CODE BEGIN TIM4_Init 2 */
-	/* USER CODE END TIM4_Init 2 */
 }
 
 /**
@@ -658,12 +609,6 @@ static void MX_TIM4_Init(void) {
  * @retval None
  */
 static void MX_USART1_UART_Init(void) {
-	/* USER CODE BEGIN USART1_Init 0 */
-	/* USER CODE END USART1_Init 0 */
-
-	/* USER CODE BEGIN USART1_Init 1 */
-	/* USER CODE END USART1_Init 1 */
-
 	huart1.Instance = USART1;
 	huart1.Init.BaudRate = 115200;
 	huart1.Init.WordLength = UART_WORDLENGTH_8B;
@@ -675,9 +620,6 @@ static void MX_USART1_UART_Init(void) {
 	if (HAL_UART_Init(&huart1) != HAL_OK) {
 		Error_Handler();
 	}
-
-	/* USER CODE BEGIN USART1_Init 2 */
-	/* USER CODE END USART1_Init 2 */
 }
 
 /**
@@ -703,19 +645,14 @@ static void MX_GPIO_Init(void) {
 	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 }
 
-/* USER CODE BEGIN 4 */
-/* USER CODE END 4 */
-
 /**
  * @brief  This function is executed in case of error occurrence.
  * @retval None
  */
 void Error_Handler(void) {
-	/* USER CODE BEGIN Error_Handler_Debug */
 	__disable_irq();
 	while (1) {
 	}
-	/* USER CODE END Error_Handler_Debug */
 }
 
 #ifdef USE_FULL_ASSERT
@@ -727,9 +664,7 @@ void Error_Handler(void) {
  * @retval None
  */
 void assert_failed(uint8_t *file, uint32_t line) {
-  /* USER CODE BEGIN 6 */
   (void)file;
   (void)line;
-  /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
