@@ -175,7 +175,7 @@ def parse_frame(line: str):
 
 def parse_daq_frame(line: str):
     line = line.strip().upper()
-    if not line or not line.startswith("x18FF5"):
+    if not line or not line.startswith("X18FF5"):
         return None
 
     try:
@@ -234,8 +234,6 @@ def main():
 
                 while "\r" in buf:
                     line, buf = buf.split("\r", 1)
-                    if line.startswith("x18FF5"):
-                        print(line[1:9])
                     frame = parse_frame(line)
                     if frame:
                         for sensor_idx in frame["updated_indices"]:
@@ -262,4 +260,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+   main()
