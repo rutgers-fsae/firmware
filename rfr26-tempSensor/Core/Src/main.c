@@ -7,8 +7,9 @@
  */
 
 #include "main.h"
-// #include <stdio.h>
+//#include <stdio.h>
 #include <stdbool.h>
+#include <time.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -28,7 +29,9 @@ typedef struct {
 #define NUM_MUXES 3U
 #define MUX_CHANNELS_PER_CHIP 32U
 #define MUX_DISABLE_CMD 0x80U
-// #define USE_SEMIHOSTING			true
+#define DAQ_BASE_ID 0x18FF5000U
+#define DAQ_EXT_ID_MAX 0x1FFFFFFFU
+//#define USE_SEMIHOSTING			true
 
 ADC_HandleTypeDef hadc1;
 
@@ -60,7 +63,6 @@ GPIO_PIN_2 };
 //     504, 505, 506, 507, 508, 509, 510, 511, 512, 513, 514,
 //     515, 516, 517, 518, 27,  28,  29,  30,  31,  32}};
 
-
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_ADC1_Init(void);
@@ -84,7 +86,7 @@ static float SensorVoltageToTempC(float voltage);
 static void ScanAllMuxChannels(TempStatistics_t *stats, bool report);
 static void CAN_Init_Filter(void);
 static HAL_StatusTypeDef CAN_SendTemperatureStatistics(TempStatistics_t *stats);
-static HAL_StatusTypeDef CAN_SendChannelTemp(uint8_t id, uint8_t temp[7]);
+static HAL_StatusTypeDef CAN_SendChannelTemp(uint32_t id, uint8_t temp[7]);
 
 #ifndef USE_SEMIHOSTING
 int _write(int file, char *ptr, int len) {
@@ -95,7 +97,7 @@ int _write(int file, char *ptr, int len) {
 #endif
 
 // send 7 individual channels temperatures through CAN
-static HAL_StatusTypeDef CAN_SendChannelTemp(uint8_t id, uint8_t temp[7]) {
+static HAL_StatusTypeDef CAN_SendChannelTemp(uint32_t id, uint8_t temp[7]) {
 	TxHeader.ExtId = id;
 	TxHeader.IDE = CAN_ID_EXT;
 	TxHeader.RTR = CAN_RTR_DATA;
@@ -240,8 +242,7 @@ static uint16_t ADC1_ReadRaw(void) {
 }
 
 static uint16_t ADC1_ReadRawSettled(void) {
-	(void) ADC1_ReadRaw();
-	return ADC1_ReadRaw();
+ 	return ADC1_ReadRaw();
 }
 
 // use linear interperolation to convert voltage to temperature, based on data from datasheet
@@ -279,7 +280,7 @@ static float SensorVoltageToTempC(float voltage) {
 }
 
 // finds the highest and lowest temperature of the 90 channels
-// uses 3 nested loops, the outermost to iterate through the 3 different multiplexers, 
+// uses 3 nested loops, the outermost to iterate through the 3 different multiplexers,
 // the next to iterate through each channel on the multiplexer,
 // and then the innermost channel samples each channel 500 times in order for an average reading
 // over a period of 2ms (longer than the duration of the noise)
@@ -307,21 +308,51 @@ static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
 				continue;
 			}
 
-			HAL_Delay(25);
+			HAL_Delay(5);
 
-			for (int i = 0; i < 500; i++) {
-				uint16_t raw = ADC1_ReadRawSettled(); // each sample takes 4µs
-				if (raw <= 1911 || raw >= 2962) { // only accept temps between 0 and 60C
-					faults++;
-					continue;
+			if (mux == 2 && ch == 4) {
+				uint8_t daq_samples[7] = { 0 };
+				uint8_t daq_idx = 0;
+				uint32_t daq_packet_seq = 0;
+
+				for (int i = 0; i < 500; i++) {
+					uint16_t raw = ADC1_ReadRawSettled(); // each sample takes 4us
+					daq_samples[daq_idx] = (uint8_t) (100.0f
+							* ((3.0f * (float) raw) / 4095.0f));
+					daq_idx++;
+
+					if (daq_idx == 7) {
+						uint32_t daq_id = DAQ_BASE_ID + daq_packet_seq;
+						CAN_SendChannelTemp(daq_id, daq_samples);
+						daq_packet_seq++;
+						daq_idx = 0;
+						memset(daq_samples, 0, sizeof(daq_samples));
+					}
+
+					if (raw <= 1911 || raw >= 2962) { // only accept temps between 0 and 60C
+						faults++;
+						continue;
+					}
+					sum += raw;
+					count++;
 				}
-				sum += raw;
-				count++;
+
+			} else {
+				for (int i = 0; i < 500; i++) {
+					uint16_t raw = ADC1_ReadRawSettled(); // each sample takes 4us
+
+					if (raw <= 1911 || raw >= 2962) { // only accept temps between 0 and 60C
+						faults++;
+						continue;
+					}
+					sum += raw;
+					count++;
+				}
 			}
 
 			float temp_c;
 
-      // if 85% of samples are outside the acceptable range set the channel temp to 120C
+			// if 85% of samples are outside the acceptable range set the channel temp to 120C
 			if (faults >= 425) {
 				temp_c = 120;
 				highTemps++;
@@ -359,7 +390,7 @@ static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
 
 			overall_channel++;
 
-      // conditional exists only for startup so that the BMS doesn't fault while temps are still being collected
+			// conditional exists only for startup so that the BMS doesn't fault while temps are still being collected
 			if (report) {
 				if (stats->min_temp == 300 || stats->max_temp == -300) {
 					continue;
@@ -395,15 +426,18 @@ static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
 	MUX_DisableAll();
 }
 
-
 /**
  * @brief  The application entry point.
  * @retval int
  */
 int main(void) {
-  #ifdef USE_SEMIHOSTING
-    initialise_monitor_handles();
-  #endif
+//
+//	clock_t start, end;
+//	double cpu_time_used;
+
+#ifdef USE_SEMIHOSTING
+	initialise_monitor_handles();
+#endif
 	HAL_Init();
 
 	SystemClock_Config();
@@ -417,7 +451,6 @@ int main(void) {
 
 	CAN_Init_Filter();
 	HAL_CAN_Start(&hcan);
-
 
 	if (HAL_ADCEx_Calibration_Start(&hadc1) != HAL_OK) {
 		Error_Handler();
@@ -443,17 +476,21 @@ int main(void) {
 	initial.max_channel = 0;
 	initial.num_enabled = 0;
 
-  // report 'fake' data upon startup
+	// report 'fake' data upon startup
 	CAN_SendTemperatureStatistics(&initial);
 
-  // collect statistics without reporting them to calibrate the system
+	// collect statistics without reporting them to calibrate the system
 	ScanAllMuxChannels(&stats, false);
 	ScanAllMuxChannels(&stats, false);
 
 	while (1) {
+//		uint32_t t0_ms = HAL_GetTick();
 		ScanAllMuxChannels(&stats, true);
+//		uint32_t dt_ms = HAL_GetTick() - t0_ms;
+//		float dt_s = dt_ms / 1000.0f;
+//		printf("ScanAllMuxChannels time: %.3f s\r\n", dt_s);
 
-    // reset max/min temp after each loop to ensure accurate data is being reported
+		// reset max/min temp after each loop to ensure accurate data is being reported
 		stats.min_temp = 300;
 		stats.max_temp = -300;
 	}

@@ -47,7 +47,8 @@ def load_daq_data(path: str) -> pd.DataFrame:
     return df
 
 
-temp_log_path = find_latest_csv("log-*.csv")
+# temp_log_path = find_latest_csv("log-*.csv")
+temp_log_path = "log-1778016118.378419.csv"
 if temp_log_path is None:
     raise ValueError("No temperature log file found matching log-*.csv")
 
