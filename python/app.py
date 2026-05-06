@@ -24,7 +24,7 @@ def load_log_data(path: str) -> pd.DataFrame:
     return df
 
 
-df = load_log_data("log.csv")
+df = load_log_data("log-1778016118.378419.csv")
 all_channels = sorted(df["channel"].unique())
 if not all_channels:
     raise ValueError("No channel data found in log.csv")

@@ -3,10 +3,10 @@ import time
 import csv
 from rich import print
 
-PORT = "/dev/cu.usbserial-DN8FHRI7"
+PORT = "/dev/cu.usbserial-DN7BORLC"
 SERIAL_BAUD = 115200
 CAN_SPEED = 6
-LOG_FILE = "log.csv"
+LOG_FILE = f"log-{time.time()}.csv"
 START_TIME = time.time()
 
 ACK = b"\x06"
