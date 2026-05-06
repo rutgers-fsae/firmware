@@ -7,7 +7,11 @@ PORT = "/dev/cu.usbserial-DN7BORLC"
 SERIAL_BAUD = 115200
 CAN_SPEED = 6
 LOG_FILE = f"log-{time.time()}.csv"
+DAQ_LOG_FILE = f"daq-log-{time.time()}.csv"
 START_TIME = time.time()
+DAQ_BASE_ID = 0x18FF5000
+DAQ_LAST_ID = 0x18FF5047
+DAQ_SCALE = 100.0
 
 ACK = b"\x06"
 BELL = b"\x07"
@@ -169,13 +173,39 @@ def parse_frame(line: str):
         return None
 
 
+def parse_daq_frame(line: str):
+    line = line.strip().upper()
+    if not line or not line.startswith("x18FF5"):
+        return None
+
+    try:
+        can_id = int(line[1:9], 16)
+        if can_id < DAQ_BASE_ID or can_id > DAQ_LAST_ID:
+            return None
+
+        dlc = int(line[9], 16)
+        data = bytes.fromhex(line[10 : 10 + dlc * 2])
+        timestamp = time.time() - START_TIME
+
+        voltages = [value / DAQ_SCALE for value in data[:7]]
+        return {
+            "timestamp": timestamp,
+            "id": can_id,
+            "voltages": voltages,
+        }
+    except (ValueError, IndexError):
+        return None
+
+
 def main():
     with (
         serial.Serial(PORT, SERIAL_BAUD, timeout=1) as ser,
         open(LOG_FILE, "w", newline="") as csvfile,
+        open(DAQ_LOG_FILE, "w", newline="") as daq_csvfile,
     ):
 
         writer = csv.writer(csvfile)
+        daq_writer = csv.writer(daq_csvfile)
         writer.writerow(
             [
                 "timestamp",
@@ -183,12 +213,15 @@ def main():
                 "temp",
             ]
         )
+        daq_writer.writerow(["timestamp", "voltage"])
 
         # send_cmd(ser, "C")  # close if already open
         send_cmd(ser, f"S{CAN_SPEED}")  # set CAN baud rate
         send_cmd(ser, "Z1")
         send_cmd(ser, "O")  # open CAN channel
-        print(f"CAN open on {PORT}. Logging to {LOG_FILE} — Ctrl+C to stop.\n")
+        print(
+            f"CAN open on {PORT}. Logging to {LOG_FILE} and {DAQ_LOG_FILE} — Ctrl+C to stop.\n"
+        )
 
         buf = ""
         try:
@@ -201,6 +234,8 @@ def main():
 
                 while "\r" in buf:
                     line, buf = buf.split("\r", 1)
+                    if line.startswith("x18FF5"):
+                        print(line[1:9])
                     frame = parse_frame(line)
                     if frame:
                         for sensor_idx in frame["updated_indices"]:
@@ -212,6 +247,12 @@ def main():
                                 ]
                             )
                         csvfile.flush()
+
+                    daq_frame = parse_daq_frame(line)
+                    if daq_frame:
+                        for voltage in daq_frame["voltages"]:
+                            daq_writer.writerow([daq_frame["timestamp"], voltage])
+                        daq_csvfile.flush()
 
         except KeyboardInterrupt:
             print("\nStopping...")
