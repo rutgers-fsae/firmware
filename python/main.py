@@ -250,8 +250,30 @@ def parse_inv_frame(line: str):
         return None
 
 
+def prompt_save_data() -> bool:
+    while True:
+        choice = input("\nSave captured data before quitting? (y/n): ").strip().lower()
+        if choice in {"y", "yes"}:
+            return True
+        if choice in {"n", "no"}:
+            return False
+        print("Please enter 'y' or 'n'.")
+
+
+def delete_logs(paths: list[str]) -> None:
+    for path in paths:
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+                print(f"Deleted {path}")
+        except OSError as exc:
+            print(f"Could not delete {path}: {exc}")
+
+
 def main():
     os.makedirs(RUN_DIR, exist_ok=True)
+    log_paths = [LOG_FILE, DAQ_LOG_FILE, FAULT_LOG_FILE, INV_LOG_FILE]
+    save_data = True
     with (
         serial.Serial(PORT, SERIAL_BAUD, timeout=1) as ser,
         open(LOG_FILE, "w", newline="") as csvfile,
@@ -332,10 +354,22 @@ def main():
                         inv_csvfile.flush()
 
         except KeyboardInterrupt:
+            save_data = prompt_save_data()
             print("\nStopping...")
         finally:
             send_cmd(ser, "C")
             print("CAN channel closed.")
+
+    if not save_data:
+        delete_logs(log_paths)
+        try:
+            if os.path.isdir(RUN_DIR) and not os.listdir(RUN_DIR):
+                os.rmdir(RUN_DIR)
+                print(f"Deleted empty run directory {RUN_DIR}")
+        except OSError as exc:
+            print(f"Could not remove run directory {RUN_DIR}: {exc}")
+    else:
+        print(f"Data saved in {RUN_DIR}")
 
 
 if __name__ == "__main__":
