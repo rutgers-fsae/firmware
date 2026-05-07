@@ -68,6 +68,22 @@ def load_daq_data(path: str) -> pd.DataFrame:
     return df
 
 
+def load_fault_data(path: str) -> pd.DataFrame:
+    df = pd.read_csv(path)
+    required_cols = {"timestamp", "faults"}
+    missing_cols = required_cols - set(df.columns)
+    if missing_cols:
+        raise ValueError(f"Missing required columns in {path}: {sorted(missing_cols)}")
+
+    df["timestamp"] = pd.to_numeric(df["timestamp"], errors="coerce")
+    df["faults"] = pd.to_numeric(df["faults"], errors="coerce")
+    df["high"] = pd.to_numeric(df["high"], errors="coerce")
+    df["low"] = pd.to_numeric(df["low"], errors="coerce")
+    df = df.dropna(subset=["timestamp", "faults"]).copy()
+    df = df.sort_values(["timestamp"]).reset_index(drop=True)
+    return df
+
+
 temp_log_files = list_csv_files("logs/log-*.csv")
 if not temp_log_files:
     raise ValueError("No temperature log file found matching log-*.csv")
@@ -93,6 +109,16 @@ if daq_log_path is None:
 else:
     daq_df = load_daq_data(daq_log_path)
     daq_status_text = f"Using DAQ log: {os.path.basename(daq_log_path)}"
+
+fault_log_files = list_csv_files("logs/fault-log-*.csv")
+fault_log_options = make_file_options(fault_log_files)
+fault_log_path = fault_log_files[-1] if fault_log_files else None
+if fault_log_path is None:
+    fault_df = pd.DataFrame(columns=["timestamp", "high", "low", "faults"])
+    fault_status_text = "No fault log file found matching fault-log-*.csv"
+else:
+    fault_df = load_fault_data(fault_log_path)
+    fault_status_text = f"Using fault log: {os.path.basename(fault_log_path)}"
 
 
 def reload_temp_data(path: str):
@@ -121,6 +147,18 @@ def reload_daq_data(path: str | None):
     else:
         daq_df = load_daq_data(path)
         daq_status_text = f"Using DAQ log: {os.path.basename(path)}"
+
+
+def reload_fault_data(path: str | None):
+    global fault_df, fault_status_text, fault_log_path
+
+    fault_log_path = path
+    if path is None:
+        fault_df = pd.DataFrame(columns=["timestamp", "high", "low", "faults"])
+        fault_status_text = "No fault log file found matching fault-log-*.csv"
+    else:
+        fault_df = load_fault_data(path)
+        fault_status_text = f"Using fault log: {os.path.basename(path)}"
 
 
 def make_figure(frame: pd.DataFrame, y_col: str, title: str, y_label: str):
@@ -174,6 +212,33 @@ def make_daq_table_rows(frame: pd.DataFrame) -> list[dict]:
     table_df["voltage"] = table_df["voltage"].round(3)
     return table_df.to_dict("records")
 
+
+def make_fault_figure(frame: pd.DataFrame):
+    fig = px.line(
+        frame,
+        x="timestamp",
+        y="faults",
+        title="Fault Count vs Time",
+        labels={"timestamp": "Time (s)", "faults": "Faults"},
+        markers=True,
+    )
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="#0f172a",
+        plot_bgcolor="#111827",
+        font={"color": "#e5e7eb"},
+    )
+    return fig
+
+
+def make_fault_table_rows(frame: pd.DataFrame) -> list[dict]:
+    table_df = frame[["timestamp", "high", "low", "faults"]].copy()
+    table_df["timestamp"] = table_df["timestamp"].round(3)
+    table_df["faults"] = table_df["faults"].astype(int)
+    table_df["high"] = table_df["faults"].astype(int)
+    table_df["low"] = table_df["faults"].astype(int)
+    return table_df.to_dict("records")
+
 initial_df = df[df["channel"].isin(default_channels)]
 initial_table_df = df[df["channel"] == default_table_channel]
 raw_temp_fig = make_figure(
@@ -189,6 +254,7 @@ running_mean_fig = make_figure(
     y_label="Running Mean Temperature",
 )
 daq_fig = make_daq_figure(daq_df)
+fault_fig = make_fault_figure(fault_df)
 
 app = Dash()
 
@@ -406,6 +472,81 @@ app.layout = html.Div(
                 "border": "1px solid #334155",
             },
         ),
+        html.H3("Fault Telemetry", style={"margin": "1.2rem 0 0.2rem"}),
+        dcc.Dropdown(
+            id="fault-log-select",
+            options=fault_log_options,
+            value=fault_log_path,
+            multi=False,
+            clearable=False,
+            searchable=True,
+            placeholder="Select fault CSV",
+            style={"maxWidth": "720px", "marginBottom": "0.5rem"},
+            className="dark-dropdown",
+        ),
+        html.Div(fault_status_text, id="fault-status", style={"marginBottom": "0.4rem", "color": "#cbd5e1"}),
+        dcc.Graph(id="fault-graph", figure=fault_fig),
+        dash_table.DataTable(
+            id="fault-table",
+            data=make_fault_table_rows(fault_df),
+            columns=[
+                {
+                    "name": "Time Recorded (since start)",
+                    "id": "timestamp",
+                    "type": "numeric",
+                    "format": {"specifier": ".3f"},
+                },
+                {
+                    "name": "Faults",
+                    "id": "faults",
+                    "type": "numeric",
+                    "format": {"specifier": "d"},
+                },
+            ],
+            sort_action="native",
+            filter_action="native",
+            fixed_rows={"headers": True},
+            style_table={
+                "height": "420px",
+                "overflowY": "auto",
+                "overflowX": "auto",
+                "marginTop": "0.5rem",
+                "border": "1px solid #334155",
+                "borderRadius": "6px",
+                "backgroundColor": "#0b1220",
+            },
+            style_header={
+                "fontWeight": "700",
+                "backgroundColor": "#1e293b",
+                "color": "#f8fafc",
+                "fontSize": "15px",
+                "border": "1px solid #334155",
+            },
+            style_cell={
+                "padding": "0.65rem",
+                "textAlign": "left",
+                "minWidth": "170px",
+                "width": "170px",
+                "maxWidth": "320px",
+                "fontSize": "14px",
+                "lineHeight": "1.4",
+                "color": "#e5e7eb",
+                "border": "1px solid #1e293b",
+                "backgroundColor": "#111827",
+            },
+            style_data_conditional=[
+                {"if": {"row_index": "odd"}, "backgroundColor": "#0f172a"},
+                {"if": {"column_id": "timestamp"}, "textAlign": "right"},
+                {"if": {"column_id": "faults"}, "textAlign": "right"},
+            ],
+            style_filter={
+                "fontSize": "14px",
+                "padding": "0.45rem",
+                "color": "#e5e7eb",
+                "backgroundColor": "#0f172a",
+                "border": "1px solid #334155",
+            },
+        ),
     ],
     style={
         "padding": "0.75rem 1rem 1.5rem",
@@ -497,10 +638,26 @@ def switch_daq_log(selected_daq_log):
 
 
 @app.callback(
+    Output("fault-status", "children"),
+    Output("fault-graph", "figure"),
+    Output("fault-table", "data"),
+    Input("fault-log-select", "value"),
+)
+def switch_fault_log(selected_fault_log):
+    if selected_fault_log is not None and not os.path.exists(selected_fault_log):
+        return "Selected fault log file no longer exists", make_fault_figure(pd.DataFrame(columns=["timestamp", "faults"])), []
+
+    reload_fault_data(selected_fault_log)
+    return fault_status_text, make_fault_figure(fault_df), make_fault_table_rows(fault_df)
+
+
+@app.callback(
     Output("temp-log-select", "options"),
     Output("temp-log-select", "value"),
     Output("daq-log-select", "options"),
     Output("daq-log-select", "value"),
+    Output("fault-log-select", "options"),
+    Output("fault-log-select", "value"),
     Output("channel-select", "options", allow_duplicate=True),
     Output("channel-select", "value", allow_duplicate=True),
     Output("table-channel-select", "options", allow_duplicate=True),
@@ -509,6 +666,9 @@ def switch_daq_log(selected_daq_log):
     Output("daq-status", "children", allow_duplicate=True),
     Output("daq-voltage-graph", "figure", allow_duplicate=True),
     Output("daq-table", "data", allow_duplicate=True),
+    Output("fault-status", "children", allow_duplicate=True),
+    Output("fault-graph", "figure", allow_duplicate=True),
+    Output("fault-table", "data", allow_duplicate=True),
     Input("refresh-logs-btn", "n_clicks"),
     prevent_initial_call=True,
 )
@@ -520,6 +680,11 @@ def refresh_latest_logs(_n_clicks):
             None,
             make_file_options(list_csv_files("logs/daq-log-*.csv")),
             find_latest_csv("logs/daq-log-*.csv"),
+            make_file_options(list_csv_files("logs/fault-log-*.csv")),
+            find_latest_csv("logs/fault-log-*.csv"),
+            no_update,
+            no_update,
+            no_update,
             no_update,
             no_update,
             no_update,
@@ -537,6 +702,10 @@ def refresh_latest_logs(_n_clicks):
     latest_daq_log = latest_daq_files[-1] if latest_daq_files else None
     reload_daq_data(latest_daq_log)
 
+    latest_fault_files = list_csv_files("logs/fault-log-*.csv")
+    latest_fault_log = latest_fault_files[-1] if latest_fault_files else None
+    reload_fault_data(latest_fault_log)
+
     channel_options = [{"label": channel, "value": channel} for channel in all_channels]
     table_options = [{"label": channel, "value": channel} for channel in all_channels]
     daq_figure = make_daq_figure(daq_df)
@@ -546,6 +715,8 @@ def refresh_latest_logs(_n_clicks):
         latest_temp_log,
         make_file_options(latest_daq_files),
         latest_daq_log,
+        make_file_options(latest_fault_files),
+        latest_fault_log,
         channel_options,
         default_channels,
         table_options,
@@ -554,6 +725,9 @@ def refresh_latest_logs(_n_clicks):
         daq_status_text,
         daq_figure,
         make_daq_table_rows(daq_df),
+        fault_status_text,
+        make_fault_figure(fault_df),
+        make_fault_table_rows(fault_df),
     )
 
 if __name__ == "__main__":
