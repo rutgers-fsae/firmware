@@ -6,8 +6,8 @@ from rich import print
 PORT = "/dev/cu.usbserial-DN7BORLC"
 SERIAL_BAUD = 115200
 CAN_SPEED = 6
-LOG_FILE = f"log-{time.time()}.csv"
-DAQ_LOG_FILE = f"daq-log-{time.time()}.csv"
+LOG_FILE = f"logs/log-{time.time()}.csv"
+DAQ_LOG_FILE = f"logs/daq-log-{time.time()}.csv"
 START_TIME = time.time()
 DAQ_BASE_ID = 0x18FF5000
 DAQ_LAST_ID = 0x18FF5047

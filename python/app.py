@@ -47,8 +47,8 @@ def load_daq_data(path: str) -> pd.DataFrame:
     return df
 
 
-# temp_log_path = find_latest_csv("log-*.csv")
-temp_log_path = "log-1778016118.378419.csv"
+# temp_log_path = find_latest_csv("logs/log-*.csv")
+temp_log_path = "logs/log-1778110803.6051562.csv"
 if temp_log_path is None:
     raise ValueError("No temperature log file found matching log-*.csv")
 
@@ -60,7 +60,8 @@ if not all_channels:
 default_channels = all_channels[: min(8, len(all_channels))]
 default_table_channel = all_channels[0]
 
-daq_log_path = find_latest_csv("daq-log-*.csv")
+# daq_log_path = find_latest_csv("logs/daq-log-*.csv")
+daq_log_path = "logs/daq-log-1778110803.60517.csv"
 if daq_log_path is None:
     daq_df = pd.DataFrame(columns=["timestamp", "voltage"])
     daq_status_text = "No DAQ log file found matching daq-log-*.csv"
@@ -72,7 +73,7 @@ else:
 def reload_latest_data():
     global df, all_channels, default_channels, default_table_channel, daq_df, daq_status_text
 
-    temp_log = find_latest_csv("log-*.csv")
+    temp_log = find_latest_csv("logs/log-*.csv")
     if temp_log is None:
         raise ValueError("No temperature log file found matching log-*.csv")
 
@@ -86,7 +87,7 @@ def reload_latest_data():
     default_channels = all_channels[: min(8, len(all_channels))]
     default_table_channel = all_channels[0]
 
-    latest_daq_log = find_latest_csv("daq-log-*.csv")
+    latest_daq_log = find_latest_csv("logs/daq-log-*.csv")
     if latest_daq_log is None:
         daq_df = pd.DataFrame(columns=["timestamp", "voltage"])
         daq_status_text = "No DAQ log file found matching daq-log-*.csv"
