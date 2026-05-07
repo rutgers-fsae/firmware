@@ -1,15 +1,19 @@
 import serial
 import time
 import csv
+import os
 from rich import print
+from datetime import datetime
 
 PORT = "/dev/cu.usbserial-DN7BORLC"
 SERIAL_BAUD = 115200
 CAN_SPEED = 6
-LOG_FILE = f"logs/log-{time.time()}.csv"
-FAULT_LOG_FILE = f"logs/fault-log-{time.time()}.csv"
-INV_LOG_FILE = f"logs/inv-log-{time.time()}.csv"
-DAQ_LOG_FILE = f"logs/daq-log-{time.time()}.csv"
+RUN_ID = datetime.now().strftime("run-%Y-%m-%d_%H-%M-%S")
+RUN_DIR = os.path.join("logs", RUN_ID)
+LOG_FILE = os.path.join(RUN_DIR, "temperature.csv")
+FAULT_LOG_FILE = os.path.join(RUN_DIR, "fault.csv")
+INV_LOG_FILE = os.path.join(RUN_DIR, "inverter.csv")
+DAQ_LOG_FILE = os.path.join(RUN_DIR, "daq.csv")
 START_TIME = time.time()
 DAQ_BASE_ID = 0x18FF5000
 DAQ_LAST_ID = 0x18FF5047
@@ -224,39 +228,42 @@ def parse_faults_frame(line: str):
 
 def parse_inv_frame(line: str):
     line = line.strip().upper()
-    if not line or not line == "XA4":
+    if not line or not line.startswith("t"):
         return None
 
     try:
-        can_id = int(line[1:9], 16)
-        dlc = int(line[9], 16)
-        data = bytes.fromhex(line[10 : 10 + dlc * 2])
+        can_id = int(line[1:4], 16)
+        if can_id != 0xA4:
+            return None
+
+        dlc = int(line[4], 16)
+        data = bytes.fromhex(line[5 : 5 + dlc * 2])
         timestamp = time.time() - START_TIME
-        fault_counts = data[3]
-        high_temp = data[2]
-        low_temp = data[1]
+        inv_byte0 = data[0] if data else None
         return {
             "timestamp": timestamp,
             "id": can_id,
-            "faults": fault_counts,
-            "high": high_temp,
-            "low": low_temp,
+            "inv_byte0": inv_byte0,
+            "dlc": dlc,
         }
     except (ValueError, IndexError):
         return None
 
 
 def main():
+    os.makedirs(RUN_DIR, exist_ok=True)
     with (
         serial.Serial(PORT, SERIAL_BAUD, timeout=1) as ser,
         open(LOG_FILE, "w", newline="") as csvfile,
         open(DAQ_LOG_FILE, "w", newline="") as daq_csvfile,
         open(FAULT_LOG_FILE, "w", newline="") as fault_csvfile,
+        open(INV_LOG_FILE, "w", newline="") as inv_csvfile,
     ):
 
         writer = csv.writer(csvfile)
         daq_writer = csv.writer(daq_csvfile)
         fault_writer = csv.writer(fault_csvfile)
+        inv_writer = csv.writer(inv_csvfile)
         writer.writerow(
             [
                 "timestamp",
@@ -266,13 +273,14 @@ def main():
         )
         daq_writer.writerow(["timestamp", "voltage"])
         fault_writer.writerow(["timestamp", "high", "low", "faults"])
+        inv_writer.writerow(["timestamp", "dlc", "inv_byte0"])
 
         # send_cmd(ser, "C")  # close if already open
         send_cmd(ser, f"S{CAN_SPEED}")  # set CAN baud rate
         send_cmd(ser, "Z1")
         send_cmd(ser, "O")  # open CAN channel
         print(
-            f"CAN open on {PORT}. Logging to {LOG_FILE}, {DAQ_LOG_FILE}, and {FAULT_LOG_FILE} — Ctrl+C to stop.\n"
+            f"CAN open on {PORT}. Logging to {LOG_FILE}, {DAQ_LOG_FILE}, {FAULT_LOG_FILE}, and {INV_LOG_FILE} — Ctrl+C to stop.\n"
         )
 
         buf = ""
@@ -315,6 +323,13 @@ def main():
                             ]
                         )
                         fault_csvfile.flush()
+
+                    inv_frame = parse_inv_frame(line)
+                    if inv_frame:
+                        inv_writer.writerow(
+                            [inv_frame["timestamp"], inv_frame["dlc"], inv_frame["inv_byte0"]]
+                        )
+                        inv_csvfile.flush()
 
         except KeyboardInterrupt:
             print("\nStopping...")

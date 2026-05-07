@@ -7,19 +7,35 @@ import plotly.express as px
 
 
 def find_latest_csv(pattern: str) -> str | None:
-    matches = glob.glob(pattern)
+    matches = glob.glob(pattern, recursive=True)
     if not matches:
         return None
     return max(matches, key=os.path.getmtime)
 
 
 def list_csv_files(pattern: str) -> list[str]:
-    matches = glob.glob(pattern)
+    matches = glob.glob(pattern, recursive=True)
     return sorted(matches, key=os.path.getmtime)
+
+
+def list_csv_files_multi(patterns: list[str]) -> list[str]:
+    merged: set[str] = set()
+    for pattern in patterns:
+        merged.update(list_csv_files(pattern))
+    return sorted(merged, key=os.path.getmtime)
 
 
 def format_csv_label(path: str) -> str:
     basename = os.path.basename(path)
+    run_dir = os.path.basename(os.path.dirname(path))
+    if run_dir.startswith("run-"):
+        run_ts = run_dir[4:]
+        try:
+            dt = datetime.strptime(run_ts, "%Y-%m-%d_%H-%M-%S")
+            return f"{dt.strftime('%Y-%m-%d %H:%M:%S')} - {basename}"
+        except ValueError:
+            pass
+
     name_without_ext, _ext = os.path.splitext(basename)
     ts_str = name_without_ext.rsplit("-", 1)[-1]
     try:
@@ -31,6 +47,12 @@ def format_csv_label(path: str) -> str:
 
 def make_file_options(paths: list[str]) -> list[dict[str, str]]:
     return [{"label": format_csv_label(path), "value": path} for path in paths]
+
+
+TEMP_LOG_PATTERNS = ["logs/**/temperature.csv", "logs/log-*.csv"]
+DAQ_LOG_PATTERNS = ["logs/**/daq.csv", "logs/daq-log-*.csv"]
+FAULT_LOG_PATTERNS = ["logs/**/fault.csv", "logs/fault-log-*.csv"]
+INV_LOG_PATTERNS = ["logs/**/inverter.csv", "logs/inv-log-*.csv"]
 
 
 def load_log_data(path: str) -> pd.DataFrame:
@@ -70,7 +92,7 @@ def load_daq_data(path: str) -> pd.DataFrame:
 
 def load_fault_data(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
-    required_cols = {"timestamp", "faults"}
+    required_cols = {"timestamp", "high", "low", "faults"}
     missing_cols = required_cols - set(df.columns)
     if missing_cols:
         raise ValueError(f"Missing required columns in {path}: {sorted(missing_cols)}")
@@ -84,7 +106,23 @@ def load_fault_data(path: str) -> pd.DataFrame:
     return df
 
 
-temp_log_files = list_csv_files("logs/log-*.csv")
+def load_inv_data(path: str) -> pd.DataFrame:
+    df = pd.read_csv(path)
+    required_cols = {"timestamp", "inv_byte0"}
+    missing_cols = required_cols - set(df.columns)
+    if missing_cols:
+        raise ValueError(f"Missing required columns in {path}: {sorted(missing_cols)}")
+
+    df["timestamp"] = pd.to_numeric(df["timestamp"], errors="coerce")
+    df["inv_byte0"] = pd.to_numeric(df["inv_byte0"], errors="coerce")
+    if "dlc" in df.columns:
+        df["dlc"] = pd.to_numeric(df["dlc"], errors="coerce")
+    df = df.dropna(subset=["timestamp"]).copy()
+    df = df.sort_values(["timestamp"]).reset_index(drop=True)
+    return df
+
+
+temp_log_files = list_csv_files_multi(TEMP_LOG_PATTERNS)
 if not temp_log_files:
     raise ValueError("No temperature log file found matching log-*.csv")
 
@@ -100,7 +138,7 @@ if not all_channels:
 default_channels = all_channels[: min(8, len(all_channels))]
 default_table_channel = all_channels[0]
 
-daq_log_files = list_csv_files("logs/daq-log-*.csv")
+daq_log_files = list_csv_files_multi(DAQ_LOG_PATTERNS)
 daq_log_options = make_file_options(daq_log_files)
 daq_log_path = daq_log_files[-1] if daq_log_files else None
 if daq_log_path is None:
@@ -110,7 +148,7 @@ else:
     daq_df = load_daq_data(daq_log_path)
     daq_status_text = f"Using DAQ log: {os.path.basename(daq_log_path)}"
 
-fault_log_files = list_csv_files("logs/fault-log-*.csv")
+fault_log_files = list_csv_files_multi(FAULT_LOG_PATTERNS)
 fault_log_options = make_file_options(fault_log_files)
 fault_log_path = fault_log_files[-1] if fault_log_files else None
 if fault_log_path is None:
@@ -119,6 +157,16 @@ if fault_log_path is None:
 else:
     fault_df = load_fault_data(fault_log_path)
     fault_status_text = f"Using fault log: {os.path.basename(fault_log_path)}"
+
+inv_log_files = list_csv_files_multi(INV_LOG_PATTERNS)
+inv_log_options = make_file_options(inv_log_files)
+inv_log_path = inv_log_files[-1] if inv_log_files else None
+if inv_log_path is None:
+    inv_df = pd.DataFrame(columns=["timestamp", "dlc", "inv_byte0"])
+    inv_status_text = "No inverter log file found matching inv-log-*.csv"
+else:
+    inv_df = load_inv_data(inv_log_path)
+    inv_status_text = f"Using inverter log: {os.path.basename(inv_log_path)}"
 
 
 def reload_temp_data(path: str):
@@ -159,6 +207,18 @@ def reload_fault_data(path: str | None):
     else:
         fault_df = load_fault_data(path)
         fault_status_text = f"Using fault log: {os.path.basename(path)}"
+
+
+def reload_inv_data(path: str | None):
+    global inv_df, inv_status_text, inv_log_path
+
+    inv_log_path = path
+    if path is None:
+        inv_df = pd.DataFrame(columns=["timestamp", "dlc", "inv_byte0"])
+        inv_status_text = "No inverter log file found matching inv-log-*.csv"
+    else:
+        inv_df = load_inv_data(path)
+        inv_status_text = f"Using inverter log: {os.path.basename(path)}"
 
 
 def make_figure(frame: pd.DataFrame, y_col: str, title: str, y_label: str):
@@ -217,9 +277,54 @@ def make_fault_figure(frame: pd.DataFrame):
     fig = px.line(
         frame,
         x="timestamp",
-        y="faults",
-        title="Fault Count vs Time",
-        labels={"timestamp": "Time (s)", "faults": "Faults"},
+        y=["faults", "high", "low"],
+        title="Fault Metrics vs Time",
+        labels={
+            "timestamp": "Time (s)",
+            "value": "Value",
+            "variable": "Signal",
+            "faults": "Faults",
+            "high": "High",
+            "low": "Low",
+        },
+        markers=True,
+    )
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="#0f172a",
+        plot_bgcolor="#111827",
+        font={"color": "#e5e7eb"},
+    )
+    fig.for_each_trace(
+        lambda trace: trace.update(
+            line={
+                "color": {
+                    "faults": "#ef4444",
+                    "high": "#f59e0b",
+                    "low": "#38bdf8",
+                }.get(trace.name, trace.line.color)
+            }
+        )
+    )
+    return fig
+
+
+def make_fault_table_rows(frame: pd.DataFrame) -> list[dict]:
+    table_df = frame[["timestamp", "high", "low", "faults"]].copy()
+    table_df["timestamp"] = table_df["timestamp"].round(3)
+    table_df["faults"] = table_df["faults"].astype(int)
+    table_df["high"] = table_df["high"].astype(int)
+    table_df["low"] = table_df["low"].astype(int)
+    return table_df.to_dict("records")
+
+
+def make_inv_figure(frame: pd.DataFrame):
+    fig = px.line(
+        frame,
+        x="timestamp",
+        y="inv_byte0",
+        title="Inverter Byte 0 vs Time",
+        labels={"timestamp": "Time (s)", "inv_byte0": "Byte 0 (raw)"},
         markers=True,
     )
     fig.update_layout(
@@ -231,12 +336,11 @@ def make_fault_figure(frame: pd.DataFrame):
     return fig
 
 
-def make_fault_table_rows(frame: pd.DataFrame) -> list[dict]:
-    table_df = frame[["timestamp", "high", "low", "faults"]].copy()
+def make_inv_table_rows(frame: pd.DataFrame) -> list[dict]:
+    table_df = frame[["timestamp", "dlc", "inv_byte0"]].copy()
     table_df["timestamp"] = table_df["timestamp"].round(3)
-    table_df["faults"] = table_df["faults"].astype(int)
-    table_df["high"] = table_df["faults"].astype(int)
-    table_df["low"] = table_df["faults"].astype(int)
+    table_df["dlc"] = pd.to_numeric(table_df["dlc"], errors="coerce").round(0).astype("Int64")
+    table_df["inv_byte0"] = pd.to_numeric(table_df["inv_byte0"], errors="coerce").round(0).astype("Int64")
     return table_df.to_dict("records")
 
 initial_df = df[df["channel"].isin(default_channels)]
@@ -255,6 +359,7 @@ running_mean_fig = make_figure(
 )
 daq_fig = make_daq_figure(daq_df)
 fault_fig = make_fault_figure(fault_df)
+inv_fig = make_inv_figure(inv_df)
 
 app = Dash()
 
@@ -547,6 +652,88 @@ app.layout = html.Div(
                 "border": "1px solid #334155",
             },
         ),
+        html.H3("Inverter Telemetry", style={"margin": "1.2rem 0 0.2rem"}),
+        dcc.Dropdown(
+            id="inv-log-select",
+            options=inv_log_options,
+            value=inv_log_path,
+            multi=False,
+            clearable=False,
+            searchable=True,
+            placeholder="Select inverter CSV",
+            style={"maxWidth": "720px", "marginBottom": "0.5rem"},
+            className="dark-dropdown",
+        ),
+        html.Div(inv_status_text, id="inv-status", style={"marginBottom": "0.4rem", "color": "#cbd5e1"}),
+        dcc.Graph(id="inv-graph", figure=inv_fig),
+        dash_table.DataTable(
+            id="inv-table",
+            data=make_inv_table_rows(inv_df),
+            columns=[
+                {
+                    "name": "Time Recorded (since start)",
+                    "id": "timestamp",
+                    "type": "numeric",
+                    "format": {"specifier": ".3f"},
+                },
+                {
+                    "name": "DLC",
+                    "id": "dlc",
+                    "type": "numeric",
+                    "format": {"specifier": "d"},
+                },
+                {
+                    "name": "Byte 0 (raw)",
+                    "id": "inv_byte0",
+                    "type": "numeric",
+                    "format": {"specifier": "d"},
+                },
+            ],
+            sort_action="native",
+            filter_action="native",
+            fixed_rows={"headers": True},
+            style_table={
+                "height": "420px",
+                "overflowY": "auto",
+                "overflowX": "auto",
+                "marginTop": "0.5rem",
+                "border": "1px solid #334155",
+                "borderRadius": "6px",
+                "backgroundColor": "#0b1220",
+            },
+            style_header={
+                "fontWeight": "700",
+                "backgroundColor": "#1e293b",
+                "color": "#f8fafc",
+                "fontSize": "15px",
+                "border": "1px solid #334155",
+            },
+            style_cell={
+                "padding": "0.65rem",
+                "textAlign": "left",
+                "minWidth": "170px",
+                "width": "170px",
+                "maxWidth": "320px",
+                "fontSize": "14px",
+                "lineHeight": "1.4",
+                "color": "#e5e7eb",
+                "border": "1px solid #1e293b",
+                "backgroundColor": "#111827",
+            },
+            style_data_conditional=[
+                {"if": {"row_index": "odd"}, "backgroundColor": "#0f172a"},
+                {"if": {"column_id": "timestamp"}, "textAlign": "right"},
+                {"if": {"column_id": "dlc"}, "textAlign": "right"},
+                {"if": {"column_id": "inv_byte0"}, "textAlign": "right"},
+            ],
+            style_filter={
+                "fontSize": "14px",
+                "padding": "0.45rem",
+                "color": "#e5e7eb",
+                "backgroundColor": "#0f172a",
+                "border": "1px solid #334155",
+            },
+        ),
     ],
     style={
         "padding": "0.75rem 1rem 1.5rem",
@@ -652,12 +839,32 @@ def switch_fault_log(selected_fault_log):
 
 
 @app.callback(
+    Output("inv-status", "children"),
+    Output("inv-graph", "figure"),
+    Output("inv-table", "data"),
+    Input("inv-log-select", "value"),
+)
+def switch_inv_log(selected_inv_log):
+    if selected_inv_log is not None and not os.path.exists(selected_inv_log):
+        return (
+            "Selected inverter log file no longer exists",
+            make_inv_figure(pd.DataFrame(columns=["timestamp", "dlc", "inv_byte0"])),
+            [],
+        )
+
+    reload_inv_data(selected_inv_log)
+    return inv_status_text, make_inv_figure(inv_df), make_inv_table_rows(inv_df)
+
+
+@app.callback(
     Output("temp-log-select", "options"),
     Output("temp-log-select", "value"),
     Output("daq-log-select", "options"),
     Output("daq-log-select", "value"),
     Output("fault-log-select", "options"),
     Output("fault-log-select", "value"),
+    Output("inv-log-select", "options"),
+    Output("inv-log-select", "value"),
     Output("channel-select", "options", allow_duplicate=True),
     Output("channel-select", "value", allow_duplicate=True),
     Output("table-channel-select", "options", allow_duplicate=True),
@@ -669,19 +876,30 @@ def switch_fault_log(selected_fault_log):
     Output("fault-status", "children", allow_duplicate=True),
     Output("fault-graph", "figure", allow_duplicate=True),
     Output("fault-table", "data", allow_duplicate=True),
+    Output("inv-status", "children", allow_duplicate=True),
+    Output("inv-graph", "figure", allow_duplicate=True),
+    Output("inv-table", "data", allow_duplicate=True),
     Input("refresh-logs-btn", "n_clicks"),
     prevent_initial_call=True,
 )
 def refresh_latest_logs(_n_clicks):
-    latest_temp_files = list_csv_files("logs/log-*.csv")
+    latest_temp_files = list_csv_files_multi(TEMP_LOG_PATTERNS)
+    latest_daq_files = list_csv_files_multi(DAQ_LOG_PATTERNS)
+    latest_fault_files = list_csv_files_multi(FAULT_LOG_PATTERNS)
+    latest_inv_files = list_csv_files_multi(INV_LOG_PATTERNS)
     if not latest_temp_files:
         return (
             [],
             None,
-            make_file_options(list_csv_files("logs/daq-log-*.csv")),
-            find_latest_csv("logs/daq-log-*.csv"),
-            make_file_options(list_csv_files("logs/fault-log-*.csv")),
-            find_latest_csv("logs/fault-log-*.csv"),
+            make_file_options(latest_daq_files),
+            latest_daq_files[-1] if latest_daq_files else None,
+            make_file_options(latest_fault_files),
+            latest_fault_files[-1] if latest_fault_files else None,
+            make_file_options(latest_inv_files),
+            latest_inv_files[-1] if latest_inv_files else None,
+            no_update,
+            no_update,
+            no_update,
             no_update,
             no_update,
             no_update,
@@ -698,13 +916,14 @@ def refresh_latest_logs(_n_clicks):
     latest_temp_log = latest_temp_files[-1]
     reload_temp_data(latest_temp_log)
 
-    latest_daq_files = list_csv_files("logs/daq-log-*.csv")
     latest_daq_log = latest_daq_files[-1] if latest_daq_files else None
     reload_daq_data(latest_daq_log)
 
-    latest_fault_files = list_csv_files("logs/fault-log-*.csv")
     latest_fault_log = latest_fault_files[-1] if latest_fault_files else None
     reload_fault_data(latest_fault_log)
+
+    latest_inv_log = latest_inv_files[-1] if latest_inv_files else None
+    reload_inv_data(latest_inv_log)
 
     channel_options = [{"label": channel, "value": channel} for channel in all_channels]
     table_options = [{"label": channel, "value": channel} for channel in all_channels]
@@ -717,6 +936,8 @@ def refresh_latest_logs(_n_clicks):
         latest_daq_log,
         make_file_options(latest_fault_files),
         latest_fault_log,
+        make_file_options(latest_inv_files),
+        latest_inv_log,
         channel_options,
         default_channels,
         table_options,
@@ -728,6 +949,9 @@ def refresh_latest_logs(_n_clicks):
         fault_status_text,
         make_fault_figure(fault_df),
         make_fault_table_rows(fault_df),
+        inv_status_text,
+        make_inv_figure(inv_df),
+        make_inv_table_rows(inv_df),
     )
 
 if __name__ == "__main__":
