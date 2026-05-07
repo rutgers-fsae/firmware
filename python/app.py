@@ -1,4 +1,5 @@
 from dash import Dash, Input, Output, State, ctx, dcc, html, no_update, dash_table
+from datetime import datetime
 import glob
 import os
 import pandas as pd
@@ -10,6 +11,26 @@ def find_latest_csv(pattern: str) -> str | None:
     if not matches:
         return None
     return max(matches, key=os.path.getmtime)
+
+
+def list_csv_files(pattern: str) -> list[str]:
+    matches = glob.glob(pattern)
+    return sorted(matches, key=os.path.getmtime)
+
+
+def format_csv_label(path: str) -> str:
+    basename = os.path.basename(path)
+    name_without_ext, _ext = os.path.splitext(basename)
+    ts_str = name_without_ext.rsplit("-", 1)[-1]
+    try:
+        dt = datetime.fromtimestamp(int(ts_str))
+        return f"{dt.strftime('%Y-%m-%d %H:%M:%S')} - {basename}"
+    except (TypeError, ValueError, OSError):
+        return basename
+
+
+def make_file_options(paths: list[str]) -> list[dict[str, str]]:
+    return [{"label": format_csv_label(path), "value": path} for path in paths]
 
 
 def load_log_data(path: str) -> pd.DataFrame:
@@ -47,10 +68,13 @@ def load_daq_data(path: str) -> pd.DataFrame:
     return df
 
 
-# temp_log_path = find_latest_csv("logs/log-*.csv")
-temp_log_path = "logs/log-1778110803.6051562.csv"
-if temp_log_path is None:
+temp_log_files = list_csv_files("logs/log-*.csv")
+if not temp_log_files:
     raise ValueError("No temperature log file found matching log-*.csv")
+
+temp_log_path = temp_log_files[-1]
+temp_log_options = make_file_options(temp_log_files)
+temp_status_text = f"Using temperature log: {os.path.basename(temp_log_path)}"
 
 df = load_log_data(temp_log_path)
 all_channels = sorted(df["channel"].unique())
@@ -60,8 +84,9 @@ if not all_channels:
 default_channels = all_channels[: min(8, len(all_channels))]
 default_table_channel = all_channels[0]
 
-# daq_log_path = find_latest_csv("logs/daq-log-*.csv")
-daq_log_path = "logs/daq-log-1778110803.60517.csv"
+daq_log_files = list_csv_files("logs/daq-log-*.csv")
+daq_log_options = make_file_options(daq_log_files)
+daq_log_path = daq_log_files[-1] if daq_log_files else None
 if daq_log_path is None:
     daq_df = pd.DataFrame(columns=["timestamp", "voltage"])
     daq_status_text = "No DAQ log file found matching daq-log-*.csv"
@@ -70,30 +95,32 @@ else:
     daq_status_text = f"Using DAQ log: {os.path.basename(daq_log_path)}"
 
 
-def reload_latest_data():
-    global df, all_channels, default_channels, default_table_channel, daq_df, daq_status_text
+def reload_temp_data(path: str):
+    global df, all_channels, default_channels, default_table_channel, temp_log_path, temp_status_text
 
-    temp_log = find_latest_csv("logs/log-*.csv")
-    if temp_log is None:
-        raise ValueError("No temperature log file found matching log-*.csv")
-
-    next_df = load_log_data(temp_log)
+    next_df = load_log_data(path)
     next_channels = sorted(next_df["channel"].unique())
     if not next_channels:
-        raise ValueError("No channel data found in latest temperature log")
+        raise ValueError("No channel data found in selected temperature log")
 
     df = next_df
+    temp_log_path = path
+    temp_status_text = f"Using temperature log: {os.path.basename(path)}"
     all_channels = next_channels
     default_channels = all_channels[: min(8, len(all_channels))]
     default_table_channel = all_channels[0]
 
-    latest_daq_log = find_latest_csv("logs/daq-log-*.csv")
-    if latest_daq_log is None:
+
+def reload_daq_data(path: str | None):
+    global daq_df, daq_status_text, daq_log_path
+
+    daq_log_path = path
+    if path is None:
         daq_df = pd.DataFrame(columns=["timestamp", "voltage"])
         daq_status_text = "No DAQ log file found matching daq-log-*.csv"
     else:
-        daq_df = load_daq_data(latest_daq_log)
-        daq_status_text = f"Using DAQ log: {os.path.basename(latest_daq_log)}"
+        daq_df = load_daq_data(path)
+        daq_status_text = f"Using DAQ log: {os.path.basename(path)}"
 
 
 def make_figure(frame: pd.DataFrame, y_col: str, title: str, y_label: str):
@@ -181,6 +208,19 @@ app.layout = html.Div(
                 "marginBottom": "0.6rem",
             },
         ),
+        html.H4("Temperature CSV", style={"margin": "0.2rem 0"}),
+        dcc.Dropdown(
+            id="temp-log-select",
+            options=temp_log_options,
+            value=temp_log_path,
+            multi=False,
+            clearable=False,
+            searchable=True,
+            placeholder="Select temperature CSV",
+            style={"maxWidth": "720px", "marginBottom": "0.5rem"},
+            className="dark-dropdown",
+        ),
+        html.Div(temp_status_text, id="temp-status", style={"marginBottom": "0.4rem", "color": "#cbd5e1"}),
         dcc.Dropdown(
             id="channel-select",
             options=[{"label": channel, "value": channel} for channel in all_channels],
@@ -292,6 +332,17 @@ app.layout = html.Div(
             },
         ),
         html.H3("DAQ Voltage Telemetry", style={"margin": "1.2rem 0 0.2rem"}),
+        dcc.Dropdown(
+            id="daq-log-select",
+            options=daq_log_options,
+            value=daq_log_path,
+            multi=False,
+            clearable=False,
+            searchable=True,
+            placeholder="Select DAQ CSV",
+            style={"maxWidth": "720px", "marginBottom": "0.5rem"},
+            className="dark-dropdown",
+        ),
         html.Div(daq_status_text, id="daq-status", style={"marginBottom": "0.4rem", "color": "#cbd5e1"}),
         dcc.Graph(id="daq-voltage-graph", figure=daq_fig),
         dash_table.DataTable(
@@ -418,24 +469,88 @@ def update_channel_view(selected_channels, selected_table_channel):
     Output("channel-select", "value"),
     Output("table-channel-select", "options"),
     Output("table-channel-select", "value"),
+    Output("temp-status", "children"),
+    Input("temp-log-select", "value"),
+)
+def switch_temperature_log(selected_temp_log):
+    if not selected_temp_log or not os.path.exists(selected_temp_log):
+        return no_update, no_update, no_update, no_update, no_update
+
+    reload_temp_data(selected_temp_log)
+    channel_options = [{"label": channel, "value": channel} for channel in all_channels]
+    table_options = [{"label": channel, "value": channel} for channel in all_channels]
+    return channel_options, default_channels, table_options, default_table_channel, temp_status_text
+
+
+@app.callback(
     Output("daq-status", "children"),
     Output("daq-voltage-graph", "figure"),
     Output("daq-table", "data"),
+    Input("daq-log-select", "value"),
+)
+def switch_daq_log(selected_daq_log):
+    if selected_daq_log is not None and not os.path.exists(selected_daq_log):
+        return "Selected DAQ log file no longer exists", make_daq_figure(pd.DataFrame(columns=["timestamp", "voltage"])), []
+
+    reload_daq_data(selected_daq_log)
+    return daq_status_text, make_daq_figure(daq_df), make_daq_table_rows(daq_df)
+
+
+@app.callback(
+    Output("temp-log-select", "options"),
+    Output("temp-log-select", "value"),
+    Output("daq-log-select", "options"),
+    Output("daq-log-select", "value"),
+    Output("channel-select", "options", allow_duplicate=True),
+    Output("channel-select", "value", allow_duplicate=True),
+    Output("table-channel-select", "options", allow_duplicate=True),
+    Output("table-channel-select", "value", allow_duplicate=True),
+    Output("temp-status", "children", allow_duplicate=True),
+    Output("daq-status", "children", allow_duplicate=True),
+    Output("daq-voltage-graph", "figure", allow_duplicate=True),
+    Output("daq-table", "data", allow_duplicate=True),
     Input("refresh-logs-btn", "n_clicks"),
     prevent_initial_call=True,
 )
 def refresh_latest_logs(_n_clicks):
-    reload_latest_data()
+    latest_temp_files = list_csv_files("logs/log-*.csv")
+    if not latest_temp_files:
+        return (
+            [],
+            None,
+            make_file_options(list_csv_files("logs/daq-log-*.csv")),
+            find_latest_csv("logs/daq-log-*.csv"),
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+        )
+
+    latest_temp_log = latest_temp_files[-1]
+    reload_temp_data(latest_temp_log)
+
+    latest_daq_files = list_csv_files("logs/daq-log-*.csv")
+    latest_daq_log = latest_daq_files[-1] if latest_daq_files else None
+    reload_daq_data(latest_daq_log)
 
     channel_options = [{"label": channel, "value": channel} for channel in all_channels]
     table_options = [{"label": channel, "value": channel} for channel in all_channels]
     daq_figure = make_daq_figure(daq_df)
 
     return (
+        make_file_options(latest_temp_files),
+        latest_temp_log,
+        make_file_options(latest_daq_files),
+        latest_daq_log,
         channel_options,
         default_channels,
         table_options,
         default_table_channel,
+        temp_status_text,
         daq_status_text,
         daq_figure,
         make_daq_table_rows(daq_df),
