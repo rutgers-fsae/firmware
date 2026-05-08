@@ -4,6 +4,8 @@ import glob
 import os
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 
 def find_latest_csv(pattern: str) -> str | None:
@@ -49,10 +51,11 @@ def make_file_options(paths: list[str]) -> list[dict[str, str]]:
     return [{"label": format_csv_label(path), "value": path} for path in paths]
 
 
-TEMP_LOG_PATTERNS = ["logs/**/temperature.csv", "logs/log-*.csv"]
-DAQ_LOG_PATTERNS = ["logs/**/daq.csv", "logs/daq-log-*.csv"]
+TEMP_LOG_PATTERNS = ["logs/**/temperature.csv"]
+DAQ_LOG_PATTERNS = ["logs/**/daq.csv"]
 FAULT_LOG_PATTERNS = ["logs/**/fault.csv", "logs/fault-log-*.csv"]
 INV_LOG_PATTERNS = ["logs/**/inverter.csv", "logs/inv-log-*.csv"]
+MOTOR_LOG_PATTERNS = ["logs/**/motor.csv"]
 
 
 def load_log_data(path: str) -> pd.DataFrame:
@@ -122,21 +125,40 @@ def load_inv_data(path: str) -> pd.DataFrame:
     return df
 
 
+def load_motor_data(path: str) -> pd.DataFrame:
+    df = pd.read_csv(path)
+    required_cols = {"timestamp", "motor_torque"}
+    missing_cols = required_cols - set(df.columns)
+    if missing_cols:
+        raise ValueError(f"Missing required columns in {path}: {sorted(missing_cols)}")
+
+    df["timestamp"] = pd.to_numeric(df["timestamp"], errors="coerce")
+    df["motor_torque"] = pd.to_numeric(df["motor_torque"], errors="coerce")
+    if "dlc" in df.columns:
+        df["dlc"] = pd.to_numeric(df["dlc"], errors="coerce")
+    df = df.dropna(subset=["timestamp"]).copy()
+    df = df.sort_values(["timestamp"]).reset_index(drop=True)
+    return df
+
+
 temp_log_files = list_csv_files_multi(TEMP_LOG_PATTERNS)
-if not temp_log_files:
-    raise ValueError("No temperature log file found matching log-*.csv")
-
-temp_log_path = temp_log_files[-1]
+temp_log_path = temp_log_files[-1] if temp_log_files else None
 temp_log_options = make_file_options(temp_log_files)
-temp_status_text = f"Using temperature log: {os.path.basename(temp_log_path)}"
-
-df = load_log_data(temp_log_path)
-all_channels = sorted(df["channel"].unique())
-if not all_channels:
-    raise ValueError("No channel data found in log.csv")
-
-default_channels = all_channels[: min(8, len(all_channels))]
-default_table_channel = all_channels[0]
+if temp_log_path is None:
+    df = pd.DataFrame(columns=["timestamp", "channel", "temp", "running_mean"])
+    all_channels: list[str] = []
+    default_channels: list[str] = []
+    default_table_channel = None
+    temp_status_text = "No temperature log file found matching temperature.csv"
+else:
+    df = load_log_data(temp_log_path)
+    all_channels = sorted(df["channel"].unique())
+    default_channels = all_channels[: min(8, len(all_channels))]
+    default_table_channel = all_channels[0] if all_channels else None
+    if all_channels:
+        temp_status_text = f"Using temperature log: {os.path.basename(temp_log_path)}"
+    else:
+        temp_status_text = f"Temperature log has no channel data: {os.path.basename(temp_log_path)}"
 
 daq_log_files = list_csv_files_multi(DAQ_LOG_PATTERNS)
 daq_log_options = make_file_options(daq_log_files)
@@ -168,21 +190,32 @@ else:
     inv_df = load_inv_data(inv_log_path)
     inv_status_text = f"Using inverter log: {os.path.basename(inv_log_path)}"
 
+motor_log_files = list_csv_files_multi(MOTOR_LOG_PATTERNS)
+motor_log_options = make_file_options(motor_log_files)
+motor_log_path = motor_log_files[-1] if motor_log_files else None
+if motor_log_path is None:
+    motor_df = pd.DataFrame(columns=["timestamp", "dlc", "motor_torque"])
+    motor_status_text = "No motor log file found matching motor.csv"
+else:
+    motor_df = load_motor_data(motor_log_path)
+    motor_status_text = f"Using motor log: {os.path.basename(motor_log_path)}"
+
 
 def reload_temp_data(path: str):
     global df, all_channels, default_channels, default_table_channel, temp_log_path, temp_status_text
 
     next_df = load_log_data(path)
     next_channels = sorted(next_df["channel"].unique())
-    if not next_channels:
-        raise ValueError("No channel data found in selected temperature log")
 
     df = next_df
     temp_log_path = path
-    temp_status_text = f"Using temperature log: {os.path.basename(path)}"
     all_channels = next_channels
     default_channels = all_channels[: min(8, len(all_channels))]
-    default_table_channel = all_channels[0]
+    default_table_channel = all_channels[0] if all_channels else None
+    if all_channels:
+        temp_status_text = f"Using temperature log: {os.path.basename(path)}"
+    else:
+        temp_status_text = f"Temperature log has no channel data: {os.path.basename(path)}"
 
 
 def reload_daq_data(path: str | None):
@@ -219,6 +252,18 @@ def reload_inv_data(path: str | None):
     else:
         inv_df = load_inv_data(path)
         inv_status_text = f"Using inverter log: {os.path.basename(path)}"
+
+
+def reload_motor_data(path: str | None):
+    global motor_df, motor_status_text, motor_log_path
+
+    motor_log_path = path
+    if path is None:
+        motor_df = pd.DataFrame(columns=["timestamp", "dlc", "motor_torque"])
+        motor_status_text = "No motor log file found matching motor.csv"
+    else:
+        motor_df = load_motor_data(path)
+        motor_status_text = f"Using motor log: {os.path.basename(path)}"
 
 
 def make_figure(frame: pd.DataFrame, y_col: str, title: str, y_label: str):
@@ -273,39 +318,53 @@ def make_daq_table_rows(frame: pd.DataFrame) -> list[dict]:
     return table_df.to_dict("records")
 
 
-def make_fault_figure(frame: pd.DataFrame):
-    fig = px.line(
-        frame,
-        x="timestamp",
-        y=["faults", "high", "low"],
-        title="Fault Metrics vs Time",
-        labels={
-            "timestamp": "Time (s)",
-            "value": "Value",
-            "variable": "Signal",
-            "faults": "Faults",
-            "high": "High",
-            "low": "Low",
-        },
-        markers=True,
-    )
+def make_fault_figure(
+    frame: pd.DataFrame,
+    motor_frame: pd.DataFrame | None = None,
+    show_motor_overlay: bool = True,
+):
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+    for column, color, label in [
+        ("faults", "#ef4444", "Faults"),
+        ("high", "#f59e0b", "High"),
+        ("low", "#38bdf8", "Low"),
+    ]:
+        fig.add_trace(
+            go.Scatter(
+                x=frame["timestamp"],
+                y=frame[column],
+                mode="lines+markers",
+                name=label,
+                line={"color": color},
+            ),
+            secondary_y=False,
+        )
+
+    if show_motor_overlay and motor_frame is not None and not motor_frame.empty and "motor_torque" in motor_frame.columns:
+        motor_plot = motor_frame.dropna(subset=["timestamp", "motor_torque"])
+        fig.add_trace(
+            go.Scatter(
+                x=motor_plot["timestamp"],
+                y=motor_plot["motor_torque"],
+                mode="lines+markers",
+                name="Motor Torque",
+                line={"color": "#22c55e"},
+            ),
+            secondary_y=True,
+        )
+
     fig.update_layout(
+        title="Fault Metrics vs Time",
         template="plotly_dark",
         paper_bgcolor="#0f172a",
         plot_bgcolor="#111827",
         font={"color": "#e5e7eb"},
+        legend={"bgcolor": "rgba(17,24,39,0.7)", "bordercolor": "#334155", "borderwidth": 1},
     )
-    fig.for_each_trace(
-        lambda trace: trace.update(
-            line={
-                "color": {
-                    "faults": "#ef4444",
-                    "high": "#f59e0b",
-                    "low": "#38bdf8",
-                }.get(trace.name, trace.line.color)
-            }
-        )
-    )
+    fig.update_xaxes(title_text="Time (s)")
+    fig.update_yaxes(title_text="Fault / High / Low", secondary_y=False)
+    fig.update_yaxes(title_text="Motor Torque", secondary_y=True)
     return fig
 
 
@@ -343,6 +402,55 @@ def make_inv_table_rows(frame: pd.DataFrame) -> list[dict]:
     table_df["inv_byte0"] = pd.to_numeric(table_df["inv_byte0"], errors="coerce").round(0).astype("Int64")
     return table_df.to_dict("records")
 
+
+def make_motor_figure(frame: pd.DataFrame):
+    fig = px.line(
+        frame,
+        x="timestamp",
+        y="motor_torque",
+        title="Motor Torque vs Time",
+        labels={"timestamp": "Time (s)", "motor_torque": "Motor Torque"},
+        markers=True,
+    )
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="#0f172a",
+        plot_bgcolor="#111827",
+        font={"color": "#e5e7eb"},
+    )
+    return fig
+
+
+def make_avg_temp_figure(frame: pd.DataFrame):
+    plot_frame = frame.copy()
+    if not plot_frame.empty:
+        plot_frame["avg_temp"] = (plot_frame["high"] + plot_frame["low"]) / 2.0
+
+    fig = px.line(
+        plot_frame,
+        x="timestamp",
+        y="avg_temp",
+        title="Average Temp vs Time",
+        labels={"timestamp": "Time (s)", "avg_temp": "Average Temp"},
+        markers=True,
+    )
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="#0f172a",
+        plot_bgcolor="#111827",
+        font={"color": "#e5e7eb"},
+    )
+    fig.update_traces(line={"color": "#a78bfa"})
+    return fig
+
+
+def make_motor_table_rows(frame: pd.DataFrame) -> list[dict]:
+    table_df = frame[["timestamp", "dlc", "motor_torque"]].copy()
+    table_df["timestamp"] = table_df["timestamp"].round(3)
+    table_df["dlc"] = pd.to_numeric(table_df["dlc"], errors="coerce").round(0).astype("Int64")
+    table_df["motor_torque"] = pd.to_numeric(table_df["motor_torque"], errors="coerce").round(0).astype("Int64")
+    return table_df.to_dict("records")
+
 initial_df = df[df["channel"].isin(default_channels)]
 initial_table_df = df[df["channel"] == default_table_channel]
 raw_temp_fig = make_figure(
@@ -358,8 +466,10 @@ running_mean_fig = make_figure(
     y_label="Running Mean Temperature",
 )
 daq_fig = make_daq_figure(daq_df)
-fault_fig = make_fault_figure(fault_df)
+fault_fig = make_fault_figure(fault_df, motor_df)
 inv_fig = make_inv_figure(inv_df)
+motor_fig = make_motor_figure(motor_df)
+avg_temp_fig = make_avg_temp_figure(fault_df)
 
 app = Dash()
 
@@ -589,6 +699,12 @@ app.layout = html.Div(
             style={"maxWidth": "720px", "marginBottom": "0.5rem"},
             className="dark-dropdown",
         ),
+        dcc.Checklist(
+            id="fault-motor-overlay",
+            options=[{"label": "Show motor torque overlay", "value": "show"}],
+            value=["show"],
+            style={"marginBottom": "0.4rem"},
+        ),
         html.Div(fault_status_text, id="fault-status", style={"marginBottom": "0.4rem", "color": "#cbd5e1"}),
         dcc.Graph(id="fault-graph", figure=fault_fig),
         dash_table.DataTable(
@@ -643,6 +759,100 @@ app.layout = html.Div(
                 {"if": {"row_index": "odd"}, "backgroundColor": "#0f172a"},
                 {"if": {"column_id": "timestamp"}, "textAlign": "right"},
                 {"if": {"column_id": "faults"}, "textAlign": "right"},
+            ],
+            style_filter={
+                "fontSize": "14px",
+                "padding": "0.45rem",
+                "color": "#e5e7eb",
+                "backgroundColor": "#0f172a",
+                "border": "1px solid #334155",
+            },
+        ),
+        html.H3("Motor Telemetry", style={"margin": "1.2rem 0 0.2rem"}),
+        dcc.Dropdown(
+            id="motor-log-select",
+            options=motor_log_options,
+            value=motor_log_path,
+            multi=False,
+            clearable=False,
+            searchable=True,
+            placeholder="Select motor CSV",
+            style={"maxWidth": "720px", "marginBottom": "0.5rem"},
+            className="dark-dropdown",
+        ),
+        html.Div(motor_status_text, id="motor-status", style={"marginBottom": "0.4rem", "color": "#cbd5e1"}),
+        html.Div(
+            [
+                html.Div(
+                    dcc.Graph(id="motor-graph", figure=motor_fig),
+                    style={"flex": "1 1 480px", "minWidth": "0"},
+                ),
+                html.Div(
+                    dcc.Graph(id="avg-temp-graph", figure=avg_temp_fig),
+                    style={"flex": "1 1 480px", "minWidth": "0"},
+                ),
+            ],
+            style={"display": "flex", "gap": "0.75rem", "flexWrap": "wrap"},
+        ),
+        dash_table.DataTable(
+            id="motor-table",
+            data=make_motor_table_rows(motor_df),
+            columns=[
+                {
+                    "name": "Time Recorded (since start)",
+                    "id": "timestamp",
+                    "type": "numeric",
+                    "format": {"specifier": ".3f"},
+                },
+                {
+                    "name": "DLC",
+                    "id": "dlc",
+                    "type": "numeric",
+                    "format": {"specifier": "d"},
+                },
+                {
+                    "name": "Motor Torque",
+                    "id": "motor_torque",
+                    "type": "numeric",
+                    "format": {"specifier": "d"},
+                },
+            ],
+            sort_action="native",
+            filter_action="native",
+            fixed_rows={"headers": True},
+            style_table={
+                "height": "420px",
+                "overflowY": "auto",
+                "overflowX": "auto",
+                "marginTop": "0.5rem",
+                "border": "1px solid #334155",
+                "borderRadius": "6px",
+                "backgroundColor": "#0b1220",
+            },
+            style_header={
+                "fontWeight": "700",
+                "backgroundColor": "#1e293b",
+                "color": "#f8fafc",
+                "fontSize": "15px",
+                "border": "1px solid #334155",
+            },
+            style_cell={
+                "padding": "0.65rem",
+                "textAlign": "left",
+                "minWidth": "170px",
+                "width": "170px",
+                "maxWidth": "320px",
+                "fontSize": "14px",
+                "lineHeight": "1.4",
+                "color": "#e5e7eb",
+                "border": "1px solid #1e293b",
+                "backgroundColor": "#111827",
+            },
+            style_data_conditional=[
+                {"if": {"row_index": "odd"}, "backgroundColor": "#0f172a"},
+                {"if": {"column_id": "timestamp"}, "textAlign": "right"},
+                {"if": {"column_id": "dlc"}, "textAlign": "right"},
+                {"if": {"column_id": "motor_torque"}, "textAlign": "right"},
             ],
             style_filter={
                 "fontSize": "14px",
@@ -828,14 +1038,31 @@ def switch_daq_log(selected_daq_log):
     Output("fault-status", "children"),
     Output("fault-graph", "figure"),
     Output("fault-table", "data"),
+    Output("avg-temp-graph", "figure"),
     Input("fault-log-select", "value"),
+    Input("fault-motor-overlay", "value"),
 )
-def switch_fault_log(selected_fault_log):
+def switch_fault_log(selected_fault_log, overlay_values):
+    show_overlay = bool(overlay_values and "show" in overlay_values)
     if selected_fault_log is not None and not os.path.exists(selected_fault_log):
-        return "Selected fault log file no longer exists", make_fault_figure(pd.DataFrame(columns=["timestamp", "faults"])), []
+        return (
+            "Selected fault log file no longer exists",
+            make_fault_figure(
+                pd.DataFrame(columns=["timestamp", "faults", "high", "low"]),
+                motor_df,
+                show_overlay,
+            ),
+            [],
+            make_avg_temp_figure(pd.DataFrame(columns=["timestamp", "high", "low"])),
+        )
 
     reload_fault_data(selected_fault_log)
-    return fault_status_text, make_fault_figure(fault_df), make_fault_table_rows(fault_df)
+    return (
+        fault_status_text,
+        make_fault_figure(fault_df, motor_df, show_overlay),
+        make_fault_table_rows(fault_df),
+        make_avg_temp_figure(fault_df),
+    )
 
 
 @app.callback(
@@ -857,6 +1084,38 @@ def switch_inv_log(selected_inv_log):
 
 
 @app.callback(
+    Output("motor-status", "children"),
+    Output("motor-graph", "figure"),
+    Output("motor-table", "data"),
+    Output("fault-graph", "figure", allow_duplicate=True),
+    Input("motor-log-select", "value"),
+    State("fault-motor-overlay", "value"),
+    prevent_initial_call=True,
+)
+def switch_motor_log(selected_motor_log, overlay_values):
+    show_overlay = bool(overlay_values and "show" in overlay_values)
+    if selected_motor_log is not None and not os.path.exists(selected_motor_log):
+        return (
+            "Selected motor log file no longer exists",
+            make_motor_figure(pd.DataFrame(columns=["timestamp", "dlc", "motor_torque"])),
+            [],
+            make_fault_figure(
+                fault_df,
+                pd.DataFrame(columns=["timestamp", "dlc", "motor_torque"]),
+                show_overlay,
+            ),
+        )
+
+    reload_motor_data(selected_motor_log)
+    return (
+        motor_status_text,
+        make_motor_figure(motor_df),
+        make_motor_table_rows(motor_df),
+        make_fault_figure(fault_df, motor_df, show_overlay),
+    )
+
+
+@app.callback(
     Output("temp-log-select", "options"),
     Output("temp-log-select", "value"),
     Output("daq-log-select", "options"),
@@ -865,6 +1124,8 @@ def switch_inv_log(selected_inv_log):
     Output("fault-log-select", "value"),
     Output("inv-log-select", "options"),
     Output("inv-log-select", "value"),
+    Output("motor-log-select", "options"),
+    Output("motor-log-select", "value"),
     Output("channel-select", "options", allow_duplicate=True),
     Output("channel-select", "value", allow_duplicate=True),
     Output("table-channel-select", "options", allow_duplicate=True),
@@ -879,14 +1140,21 @@ def switch_inv_log(selected_inv_log):
     Output("inv-status", "children", allow_duplicate=True),
     Output("inv-graph", "figure", allow_duplicate=True),
     Output("inv-table", "data", allow_duplicate=True),
+    Output("motor-status", "children", allow_duplicate=True),
+    Output("motor-graph", "figure", allow_duplicate=True),
+    Output("motor-table", "data", allow_duplicate=True),
+    Output("avg-temp-graph", "figure", allow_duplicate=True),
     Input("refresh-logs-btn", "n_clicks"),
+    State("fault-motor-overlay", "value"),
     prevent_initial_call=True,
 )
-def refresh_latest_logs(_n_clicks):
+def refresh_latest_logs(_n_clicks, overlay_values):
+    show_overlay = bool(overlay_values and "show" in overlay_values)
     latest_temp_files = list_csv_files_multi(TEMP_LOG_PATTERNS)
     latest_daq_files = list_csv_files_multi(DAQ_LOG_PATTERNS)
     latest_fault_files = list_csv_files_multi(FAULT_LOG_PATTERNS)
     latest_inv_files = list_csv_files_multi(INV_LOG_PATTERNS)
+    latest_motor_files = list_csv_files_multi(MOTOR_LOG_PATTERNS)
     if not latest_temp_files:
         return (
             [],
@@ -897,6 +1165,12 @@ def refresh_latest_logs(_n_clicks):
             latest_fault_files[-1] if latest_fault_files else None,
             make_file_options(latest_inv_files),
             latest_inv_files[-1] if latest_inv_files else None,
+            make_file_options(latest_motor_files),
+            latest_motor_files[-1] if latest_motor_files else None,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
             no_update,
             no_update,
             no_update,
@@ -925,6 +1199,9 @@ def refresh_latest_logs(_n_clicks):
     latest_inv_log = latest_inv_files[-1] if latest_inv_files else None
     reload_inv_data(latest_inv_log)
 
+    latest_motor_log = latest_motor_files[-1] if latest_motor_files else None
+    reload_motor_data(latest_motor_log)
+
     channel_options = [{"label": channel, "value": channel} for channel in all_channels]
     table_options = [{"label": channel, "value": channel} for channel in all_channels]
     daq_figure = make_daq_figure(daq_df)
@@ -938,6 +1215,8 @@ def refresh_latest_logs(_n_clicks):
         latest_fault_log,
         make_file_options(latest_inv_files),
         latest_inv_log,
+        make_file_options(latest_motor_files),
+        latest_motor_log,
         channel_options,
         default_channels,
         table_options,
@@ -947,11 +1226,15 @@ def refresh_latest_logs(_n_clicks):
         daq_figure,
         make_daq_table_rows(daq_df),
         fault_status_text,
-        make_fault_figure(fault_df),
+        make_fault_figure(fault_df, motor_df, show_overlay),
         make_fault_table_rows(fault_df),
         inv_status_text,
         make_inv_figure(inv_df),
         make_inv_table_rows(inv_df),
+        motor_status_text,
+        make_motor_figure(motor_df),
+        make_motor_table_rows(motor_df),
+        make_avg_temp_figure(fault_df),
     )
 
 if __name__ == "__main__":

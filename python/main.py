@@ -14,6 +14,7 @@ LOG_FILE = os.path.join(RUN_DIR, "temperature.csv")
 FAULT_LOG_FILE = os.path.join(RUN_DIR, "fault.csv")
 INV_LOG_FILE = os.path.join(RUN_DIR, "inverter.csv")
 DAQ_LOG_FILE = os.path.join(RUN_DIR, "daq.csv")
+MOTOR_LOG_FILE = os.path.join(RUN_DIR, "motor.csv")
 START_TIME = time.time()
 DAQ_BASE_ID = 0x18FF5000
 DAQ_LAST_ID = 0x18FF5047
@@ -226,10 +227,39 @@ def parse_faults_frame(line: str):
     except (ValueError, IndexError):
         return None
 
-def parse_inv_frame(line: str):
-    line = line.strip().upper()
-    if not line or not line.startswith("t"):
+
+def parse_motor_frame(line: str):
+    line = line.strip()
+    if not line or line[0] not in {"t", "T"}:
         return None
+
+    line = line.upper()
+
+    try:
+        can_id = int(line[1:4], 16)
+        if can_id != 0xAC:
+            return None
+
+        dlc = int(line[4], 16)
+        data = bytes.fromhex(line[5 : 5 + dlc * 2])
+        timestamp = time.time() - START_TIME
+        motor_torque = (data[0] | (data[1] << 8)) if len(data) >= 2 else None
+        return {
+            "timestamp": timestamp,
+            "id": can_id,
+            "motor_torque": motor_torque,
+            "dlc": dlc,
+        }
+    except (ValueError, IndexError):
+        return None
+
+
+def parse_inv_frame(line: str):
+    line = line.strip()
+    if not line or line[0] not in {"t", "T"}:
+        return None
+
+    line = line.upper()
 
     try:
         can_id = int(line[1:4], 16)
@@ -272,7 +302,7 @@ def delete_logs(paths: list[str]) -> None:
 
 def main():
     os.makedirs(RUN_DIR, exist_ok=True)
-    log_paths = [LOG_FILE, DAQ_LOG_FILE, FAULT_LOG_FILE, INV_LOG_FILE]
+    log_paths = [LOG_FILE, DAQ_LOG_FILE, FAULT_LOG_FILE, INV_LOG_FILE, MOTOR_LOG_FILE]
     save_data = True
     with (
         serial.Serial(PORT, SERIAL_BAUD, timeout=1) as ser,
@@ -280,12 +310,14 @@ def main():
         open(DAQ_LOG_FILE, "w", newline="") as daq_csvfile,
         open(FAULT_LOG_FILE, "w", newline="") as fault_csvfile,
         open(INV_LOG_FILE, "w", newline="") as inv_csvfile,
+        open(MOTOR_LOG_FILE, "w", newline="") as motor_csvfile,
     ):
 
         writer = csv.writer(csvfile)
         daq_writer = csv.writer(daq_csvfile)
         fault_writer = csv.writer(fault_csvfile)
         inv_writer = csv.writer(inv_csvfile)
+        motor_writer = csv.writer(motor_csvfile)
         writer.writerow(
             [
                 "timestamp",
@@ -296,13 +328,14 @@ def main():
         daq_writer.writerow(["timestamp", "voltage"])
         fault_writer.writerow(["timestamp", "high", "low", "faults"])
         inv_writer.writerow(["timestamp", "dlc", "inv_byte0"])
+        motor_writer.writerow(["timestamp", "dlc", "motor_torque"])
 
         # send_cmd(ser, "C")  # close if already open
         send_cmd(ser, f"S{CAN_SPEED}")  # set CAN baud rate
         send_cmd(ser, "Z1")
         send_cmd(ser, "O")  # open CAN channel
         print(
-            f"CAN open on {PORT}. Logging to {LOG_FILE}, {DAQ_LOG_FILE}, {FAULT_LOG_FILE}, and {INV_LOG_FILE} — Ctrl+C to stop.\n"
+            f"CAN open on {PORT}. Logging to {LOG_FILE}, {DAQ_LOG_FILE}, {FAULT_LOG_FILE}, {INV_LOG_FILE}, and {MOTOR_LOG_FILE} — Ctrl+C to stop.\n"
         )
 
         buf = ""
@@ -349,9 +382,24 @@ def main():
                     inv_frame = parse_inv_frame(line)
                     if inv_frame:
                         inv_writer.writerow(
-                            [inv_frame["timestamp"], inv_frame["dlc"], inv_frame["inv_byte0"]]
+                            [
+                                inv_frame["timestamp"],
+                                inv_frame["dlc"],
+                                inv_frame["inv_byte0"],
+                            ]
                         )
                         inv_csvfile.flush()
+
+                    motor_frame = parse_motor_frame(line)
+                    if motor_frame:
+                        motor_writer.writerow(
+                            [
+                                motor_frame["timestamp"],
+                                motor_frame["dlc"],
+                                motor_frame["motor_torque"],
+                            ]
+                        )
+                        motor_csvfile.flush()
 
         except KeyboardInterrupt:
             save_data = prompt_save_data()

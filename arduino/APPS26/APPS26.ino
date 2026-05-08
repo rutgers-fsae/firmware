@@ -13,6 +13,7 @@ void set_implausibility(bool plaus) {
   // is there is implausibility the output should be LOW
   if(plaus == true){
     digitalWrite(out, LOW);
+    // Serial.println("test");
   } else {
     digitalWrite(out, HIGH);
   }
@@ -37,10 +38,10 @@ float sensor_transfer_fcn(int rawVal, int sensorNum) {
   voltage = 5.0 * rawVal / 1023.0;
   switch (sensorNum) {
     case 1:
-      return (40 * voltage) - 50;
+      return (40 * voltage) - 49;
       break;
     case 2:
-      return (40 * voltage) - 33;
+      return (40 * voltage) - 32;
       break;
     default:
       Serial.println("Invalid sensor number");
@@ -65,6 +66,7 @@ void setup() {
   digitalWrite(out, LOW); // default the system to have implausibility
 
   delay(100); // delay the start circuit slightly
+}
 
 int sensor1RawVal,sensor2RawVal;
 float sensor1Percentage, sensor2Percentage;
@@ -90,16 +92,16 @@ void loop() {
   sensor2Percentage = sensor_transfer_fcn(sensor2RawVal, 2);
 
   bool appsRangeFault = (sensor1Percentage < 0 || sensor2Percentage < 0 || sensor1Percentage > 100 || sensor2Percentage > 100);
-  if (appsRangeFault) {
-    Serial.println("Invalid sensor percentages");
-  }
+  // if (appsRangeFault) {
+  //   Serial.println("Invalid sensor percentages");
+  // }
 
 
-  Serial.print("APPS 1: ");
-  Serial.println(sensor1Percentage);
+  // Serial.print("APPS 1: ");
+  // Serial.println(sensor1Percentage);
 
-  Serial.print("APPS 2:");
-  Serial.println(sensor2Percentage);
+  // Serial.print("APPS 2:");
+  // Serial.println(sensor2Percentage);
 
   // Check APPS mismatch fault timing
   bool mismatchNow = (fabsf(sensor1Percentage - sensor2Percentage) > 10);
@@ -129,6 +131,10 @@ void loop() {
     implausibilityLatched = false;
   }
 
+
+
   implausibility = implausibilityLatched;
+
+
   set_implausibility(implausibility);
 }
