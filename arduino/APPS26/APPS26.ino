@@ -91,7 +91,7 @@ void loop() {
   sensor1Percentage = sensor_transfer_fcn(sensor1RawVal, 1);
   sensor2Percentage = sensor_transfer_fcn(sensor2RawVal, 2);
 
-  bool appsRangeFault = (sensor1Percentage < 0 || sensor2Percentage < 0 || sensor1Percentage > 100 || sensor2Percentage > 100);
+  bool appsRangeFault = (sensor1Percentage < 10 || sensor2Percentage < 10 || sensor1Percentage > 100 || sensor2Percentage > 100);
   // if (appsRangeFault) {
   //   Serial.println("Invalid sensor percentages");
   // }

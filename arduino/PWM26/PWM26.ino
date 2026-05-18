@@ -1,31 +1,50 @@
 /*
 HOW TO USE THIS CODE FOR DAQ:
-  1. start by flashing the code with `CLEAR_EEPROM` set to `true` and `DECODE` set to `false`. let the code run until you see the serial monitor pause for 2 seconds and the "END EEPROM WRITE" message
-  2. now update `CLEAR_EEPROM` to `false` and `DECODE` to `true`. flash the code and run it to see the output of the stored data - after reading from the storage the code halts indefinitely
-  3. make sure to rever `DECODE` to `false` when done, failure to do so will result in the code not working
+  1. To record data:
+     - Set CLEAR_EEPROM to true
+     - Set DECODE to false
+     - Set daq to true
+     - Flash the code and let it run until "END EEPROM WRITE"
+
+  2. To read stored data:
+     - Set CLEAR_EEPROM to false
+     - Set DECODE to true
+     - Flash the code and open Serial Monitor
+
+  3. For normal operation:
+     - Set CLEAR_EEPROM to false
+     - Set DECODE to false
+     - Set daq to false
 */
 
 #include <math.h>
 #include <EEPROM.h>
 
-#define CLEAR_EEPROM true // set to true to clear any stored data during startup
-#define DELTA_TIME 100 // time in milliseconds between each sample
-#define DECODE false // set to true to print out stored data
+#define CLEAR_EEPROM true
+#define DELTA_TIME 100
+#define DECODE false
 
-uint8_t pumpDuty = 5;   // Pump duty cycle (0–100)
-uint8_t fanDuty = 50;     // Fan duty cycle (0–100)
+#define PUMP_PIN 9
+#define FAN_PIN 8
+#define TEMP_PIN A2   // Coolant Temp 3 from schematic
 
-bool daq = true; 
+uint8_t pumpDuty = 5;   // Pump duty cycle 0-100
+uint8_t fanDuty = 0;    // Fan duty cycle 0-100
 
-const float R0 = 10000.0;      // 10kΩ at 25°C
-const float Beta = 3950.0;     // Beta value
-const float T0 = 298.15;       // 25°C in Kelvin
-const float R_fixed = 10000.0; // 10kΩ divider resistor
+bool daq = false;
+
+// Thermistor constants
+const float R0 = 10000.0;          // 10k thermistor at 25 C
+const float Beta = 3950.0;         // Beta value
+const float T0 = 298.15;           // 25 C in Kelvin
+const float R_fixed = 10000.0;     // 10k divider resistor
 const float tempTune = 0.25;
 
+float tC1 = 0.0;
 
-int adc1;
-float voltage1, R_therm1, tK1, tC1;
+// For timed serial printing
+unsigned long lastPrintTime = 0;
+const unsigned long printInterval = 500; // ms
 
 uint16_t encodeTemp10(float tC) {
   if (isnan(tC) || isinf(tC)) return 0;
@@ -39,110 +58,176 @@ float decodeTemp10(uint16_t value) {
 }
 
 float adcToTemp(uint8_t pin) {
-  adc1 = analogRead(pin);
-  voltage1 = adc1 * (5.0 / 1023.0);
-  R_therm1 = R_fixed * (voltage1 / (5.0 - voltage1));
-  tK1 = 1.0 / ((1.0/T0) + (1.0/Beta) * log(R_therm1/R0));
-  tC1 = tK1 - 273.15 + tempTune;
-  return tC1;
+  int adc = analogRead(pin);
+
+  // avoid divide by zero issues
+  if (adc <= 0) return -999.0;
+  if (adc >= 1023) return -999.0;
+
+  float voltage = adc * (5.0 / 1023.0);
+
+  // Schematic has 10k pullup to 5V and thermistor returning to ground
+  float R_therm = R_fixed * (voltage / (5.0 - voltage));
+
+  float tK = 1.0 / ((1.0 / T0) + (1.0 / Beta) * log(R_therm / R0));
+  float tC = tK - 273.15 + tempTune;
+
+  return tC;
+}
+
+// Software PWM for D8
+void softwarePWMFan(uint8_t duty) {
+  static unsigned long cycleStart = 0;
+
+  const unsigned long period = 10000; // microseconds, 100 Hz PWM
+
+  duty = constrain(duty, 0, 100);
+
+  if (duty == 0) {
+    digitalWrite(FAN_PIN, LOW);
+    return;
+  }
+
+  if (duty >= 100) {
+    digitalWrite(FAN_PIN, HIGH);
+    return;
+  }
+
+  unsigned long now = micros();
+
+  if (now - cycleStart >= period) {
+    cycleStart = now;
+  }
+
+  unsigned long onTime = (period * duty) / 100;
+
+  if ((now - cycleStart) < onTime) {
+    digitalWrite(FAN_PIN, HIGH);
+  } else {
+    digitalWrite(FAN_PIN, LOW);
+  }
 }
 
 void setup() {
-  pinMode(9, OUTPUT);   // Pump
-  pinMode(11, OUTPUT);  // Fan
+  pinMode(PUMP_PIN, OUTPUT);
+  pinMode(FAN_PIN, OUTPUT);
+
   Serial.begin(115200);
-  digitalWrite(9, HIGH);
-  digitalWrite(11, HIGH);
+
+  digitalWrite(PUMP_PIN, HIGH);
+  digitalWrite(FAN_PIN, LOW);
+
   delayMicroseconds(3000);
-
-
 
   if (DECODE) {
     Serial.println("\n\n========== START READ EEPROM ==========");
+
     int sampleCount = EEPROM.length() / (int)sizeof(uint16_t);
+
     for (int i = 0; i < sampleCount; i++) {
       int address = i * (int)sizeof(uint16_t);
+
       uint16_t encodedTemp;
       EEPROM.get(address, encodedTemp);
+
       float t = decodeTemp10(encodedTemp);
 
-      // Print readable output
-      Serial.print("T1: ");
+      Serial.print("Coolant Temp 3: ");
       Serial.print(t);
-      Serial.println(" C   ");
+      Serial.println(" C");
     }
+
     Serial.println("========== END READ EEPROM ==========\n\n");
     delay(500);
   }
 
-  // clear stored data (do it after reading just to prevent data loss)
-  if (CLEAR_EEPROM) {
-    for (int i = 0; i < EEPROM.length(); i++) {
-      EEPROM.write(i, 0);
-    }
-  }
- 
-
-  // =========================
-  // Timer1 → 500 Hz (Pump)
-  // =========================
-  TCCR1A = 0;
-  TCCR1B = 0;
-  TCCR1A |= (1 << COM1A1) | (1 << WGM11);
-  TCCR1B |= (1 << WGM12) | (1 << WGM13);
-  // Prescaler = 64
-  TCCR1B |= (1 << CS11) | (1 << CS10);
-  ICR1 = 499;  // 500 Hz
-  OCR1A = (ICR1 * pumpDuty) / 100;
-
-
-  // =========================
-  // Timer2 → 31 kHz (Fan)
-  // =========================
- 
-  TCCR2A = 0;
-  TCCR2B = 0;
-  // Fast PWM (8-bit)
-  TCCR2A |= (1 << COM2A1) | (1 << WGM20) | (1 << WGM21);
-  // Prescaler = 1
-  TCCR2B |= (1 << CS20);
-  OCR2A = 0;  // Start off
-}
-
-void loop() {
-
+  // Halt forever after decode
   while (DECODE) {
     ;
   }
 
-  // --- Thermistor 1 ---
+  // Clear EEPROM after reading is skipped unless CLEAR_EEPROM is true
+  if (CLEAR_EEPROM) {
+    Serial.println("Clearing EEPROM...");
+
+    for (int i = 0; i < EEPROM.length(); i++) {
+      EEPROM.write(i, 0);
+    }
+
+    Serial.println("EEPROM cleared.");
+  }
+
+  // =========================
+  // Timer1 -> 500 Hz Pump PWM on D9
+  // =========================
+  TCCR1A = 0;
+  TCCR1B = 0;
+
+  TCCR1A |= (1 << COM1A1) | (1 << WGM11);
+  TCCR1B |= (1 << WGM12) | (1 << WGM13);
+
+  // Prescaler = 64
+  TCCR1B |= (1 << CS11) | (1 << CS10);
+
+  ICR1 = 499; // 500 Hz
+  OCR1A = (ICR1 * pumpDuty) / 100;
+}
+
+void loop() {
+  // Keep software PWM running as often as possible
+  softwarePWMFan(fanDuty);
 
   if (daq) {
     int sampleCount = EEPROM.length() / (int)sizeof(uint16_t);
+
     Serial.println("\n\n========== START EEPROM WRITE ==========");
+
     for (int i = 0; i < sampleCount; i++) {
-      delay(DELTA_TIME); // write data point every DELTA_TIME ms
-      tC1 = adcToTemp(A0);
+      unsigned long startTime = millis();
+
+      // Keep fan PWM alive during the sample delay
+      while (millis() - startTime < DELTA_TIME) {
+        softwarePWMFan(fanDuty);
+      }
+
+      tC1 = adcToTemp(TEMP_PIN);
+
       uint16_t encodedTemp = encodeTemp10(tC1);
       int address = i * (int)sizeof(uint16_t);
+
       EEPROM.put(address, encodedTemp);
 
-      Serial.print("T1: ");
+      Serial.print("Coolant Temp 3: ");
       Serial.print(tC1);
-      Serial.println(" C   ");
+      Serial.println(" C");
     }
-    daq = false; // ensure we only write data for the length of EEPROM, don't want to overwrite anything
-    Serial.println("========== END EEPROM WRITE  ==========\n\n");
+
+    daq = false;
+
+    Serial.println("========== END EEPROM WRITE ==========\n\n");
     delay(2000);
   }
 
-  tC1 = adcToTemp(A0);
+  // Read Coolant Temp 3 from A2
+  tC1 = adcToTemp(TEMP_PIN);
 
-  // Print readable output
-  Serial.print("T1: ");
-  Serial.print(tC1);
-  Serial.println(" C   ");
+  // Fan control based on Coolant Temp 3
+  if (tC1 < 30.0) {
+    fanDuty = 0;
+  } else if (tC1 > 45.0) {
+    fanDuty = 100;
+  } else {
+    fanDuty = 60;
+  }
 
-   // Apply to Timer2
-  OCR2A = (fanDuty * 255) / 100;
+  // Print every 500 ms instead of spamming Serial
+  if (millis() - lastPrintTime >= printInterval) {
+    lastPrintTime = millis();
+
+    Serial.print("Coolant Temp 3: ");
+    Serial.print(tC1);
+    Serial.print(" C, Fan Duty: ");
+    Serial.print(fanDuty);
+    Serial.println("%");
+  }
 }
