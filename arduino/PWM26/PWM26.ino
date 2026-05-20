@@ -20,13 +20,13 @@ HOW TO USE THIS CODE FOR DAQ:
 #include <math.h>
 #include <EEPROM.h>
 
-#define CLEAR_EEPROM true
+#define CLEAR_EEPROM false
 #define DELTA_TIME 100
 #define DECODE false
 
 #define PUMP_PIN 9
-#define FAN_PIN 8
-#define TEMP_PIN A2   // Coolant Temp 3 from schematic
+#define FAN_PIN 3
+#define TEMP_PIN A3   // Coolant Temp 3 from schematic
 
 uint8_t pumpDuty = 5;   // Pump duty cycle 0-100
 uint8_t fanDuty = 0;    // Fan duty cycle 0-100
@@ -169,6 +169,11 @@ void setup() {
   // Prescaler = 64
   TCCR1B |= (1 << CS11) | (1 << CS10);
 
+  TCCR2A = 0;
+  TCCR2B = 0;
+  TCCR2A |= (1 << COM2A1) | (1 << WGM20) | (1 << WGM21); // Fast PWM
+  TCCR2B |= (1 << CS21); // Prescaler = 8
+
   ICR1 = 499; // 500 Hz
   OCR1A = (ICR1 * pumpDuty) / 100;
 }
@@ -211,6 +216,8 @@ void loop() {
   // Read Coolant Temp 3 from A2
   tC1 = adcToTemp(TEMP_PIN);
 
+  // Serial.println(tC1);
+
   // Fan control based on Coolant Temp 3
   if (tC1 < 30.0) {
     fanDuty = 0;
@@ -230,4 +237,6 @@ void loop() {
     Serial.print(fanDuty);
     Serial.println("%");
   }
+
+  OCR2A = (0 * 255) / 100; 
 }

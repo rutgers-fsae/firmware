@@ -399,14 +399,14 @@ static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
 					uint16_t raw = ADC1_ReadRawSettled(); // each sample takes 4us
 
 					/* Apply biquad lowpass (5 kHz) to attenuate 20 kHz EMI */
-					double filtered = Biquad_Process(mux, ch, (double) raw);
-					uint16_t raw_f = (uint16_t) (filtered + 0.5);
+//					double filtered = Biquad_Process(mux, ch, (double) raw);
+//					uint16_t raw_f = (uint16_t) (filtered + 0.5);
 
-					if (raw_f <= 1911 || raw_f >= 2962) { // only accept temps between 0 and 60C
+					if (raw <= 1911 || raw >= 2962) { // only accept temps between 0 and 60C
 						faults++;
 						continue;
 					}
-					sum += raw_f;
+					sum += raw;
 					count++;
 				}
 			}

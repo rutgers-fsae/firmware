@@ -13,7 +13,7 @@ void set_implausibility(bool plaus) {
   // is there is implausibility the output should be LOW
   if(plaus == true){
     digitalWrite(out, LOW);
-    // Serial.println("test");
+    Serial.println("test");
   } else {
     digitalWrite(out, HIGH);
   }
@@ -91,11 +91,10 @@ void loop() {
   sensor1Percentage = sensor_transfer_fcn(sensor1RawVal, 1);
   sensor2Percentage = sensor_transfer_fcn(sensor2RawVal, 2);
 
-  bool appsRangeFault = (sensor1Percentage < 10 || sensor2Percentage < 10 || sensor1Percentage > 100 || sensor2Percentage > 100);
+  bool appsRangeFault = (sensor1Percentage < 10 || sensor2Percentage < 10);
   // if (appsRangeFault) {
   //   Serial.println("Invalid sensor percentages");
   // }
-
 
   // Serial.print("APPS 1: ");
   // Serial.println(sensor1Percentage);
@@ -124,17 +123,16 @@ void loop() {
   bool activeFault = (appsRangeFault || appsMismatchFault || brakeThrottleFault);
   if (activeFault) {
     implausibilityLatched = true;
+  } else {
+    implausibilityLatched = false;
   }
 
   bool pedalReleased = ((sensor1Percentage < 10) && (sensor2Percentage < 10));
+
   if (implausibilityLatched && pedalReleased && !activeFault) {
     implausibilityLatched = false;
   }
 
-
-
   implausibility = implausibilityLatched;
-
-
   set_implausibility(implausibility);
 }
