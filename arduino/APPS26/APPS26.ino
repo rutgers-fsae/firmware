@@ -13,7 +13,6 @@ void set_implausibility(bool plaus) {
   // is there is implausibility the output should be LOW
   if(plaus == true){
     digitalWrite(out, LOW);
-    Serial.println("test");
   } else {
     digitalWrite(out, HIGH);
   }
@@ -70,7 +69,7 @@ void setup() {
 
 int sensor1RawVal,sensor2RawVal;
 float sensor1Percentage, sensor2Percentage;
-bool implausibility = false, implausibilityLatched = false, prevMismatch = false, brakeSwitch;
+bool implausibility = false, implausibilityLatched = true, prevMismatch = false, brakeSwitch;
 unsigned long implausibilityStartTimer = 0, presentTimer = 0;
 
 void loop() {
@@ -91,16 +90,14 @@ void loop() {
   sensor1Percentage = sensor_transfer_fcn(sensor1RawVal, 1);
   sensor2Percentage = sensor_transfer_fcn(sensor2RawVal, 2);
 
-  bool appsRangeFault = (sensor1Percentage < 10 || sensor2Percentage < 10);
-  // if (appsRangeFault) {
-  //   Serial.println("Invalid sensor percentages");
-  // }
+  bool pedalPressed = (sensor1Percentage > 10 && sensor2Percentage > 10);
 
-  // Serial.print("APPS 1: ");
-  // Serial.println(sensor1Percentage);
 
-  // Serial.print("APPS 2:");
-  // Serial.println(sensor2Percentage);
+  Serial.print("APPS 1: ");
+  Serial.println(sensor1Percentage);
+
+  Serial.print("APPS 2:");
+  Serial.println(sensor2Percentage);
 
   // Check APPS mismatch fault timing
   bool mismatchNow = (fabsf(sensor1Percentage - sensor2Percentage) > 10);
@@ -118,21 +115,31 @@ void loop() {
 
 
   // if the brakeSwitch is HIGH there is a fault
-  bool brakeThrottleFault = ((brakeSwitch == HIGH) && ((sensor1Percentage > 25) || (sensor2Percentage > 25)));
+  bool brakeThrottleFault = ((brakeSwitch == HIGH) && pedalPressed);
 
-  bool activeFault = (appsRangeFault || appsMismatchFault || brakeThrottleFault);
+  bool activeFault = (appsMismatchFault || brakeThrottleFault);
+
+  // Serial.print("APPS Range Fault: ");
+  // Serial.println(appsRangeFault);
+
+  // Serial.print("APPS Mismatch Fault:");
+  // Serial.println(appsMismatchFault);
+
+  // Serial.print("Break Throttle Fault: ");
+  // Serial.println(brakeThrottleFault);
+
   if (activeFault) {
+    // Serial.println("\n\n fault \n\n");
     implausibilityLatched = true;
-  } else {
+  } 
+
+  if (implausibilityLatched && !pedalPressed && !activeFault) {
+    // Serial.println("\n\n NO FAULT \n\n");
     implausibilityLatched = false;
   }
 
-  bool pedalReleased = ((sensor1Percentage < 10) && (sensor2Percentage < 10));
+  implausibility = implausibilityLatched || !pedalPressed;
 
-  if (implausibilityLatched && pedalReleased && !activeFault) {
-    implausibilityLatched = false;
-  }
-
-  implausibility = implausibilityLatched;
+  Serial.println(implausibility);
   set_implausibility(implausibility);
 }

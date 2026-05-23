@@ -147,53 +147,57 @@ void delay_us(uint32_t us) {
 
 // send 7 individual channels temperatures through CAN
 static HAL_StatusTypeDef CAN_SendChannelTemp(uint32_t id, uint8_t temp[7]) {
-	TxHeader.ExtId = id;
-	TxHeader.IDE = CAN_ID_EXT;
-	TxHeader.RTR = CAN_RTR_DATA;
-	TxHeader.DLC = 8u;
-	TxHeader.TransmitGlobalTime = DISABLE;
+	if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0) { // ensure CAN mailbox is open to receive
+		TxHeader.ExtId = id;
+		TxHeader.IDE = CAN_ID_EXT;
+		TxHeader.RTR = CAN_RTR_DATA;
+		TxHeader.DLC = 8u;
+		TxHeader.TransmitGlobalTime = DISABLE;
 
-	TxData[0] = (uint8_t) (int8_t) temp[0];
-	TxData[1] = (uint8_t) (int8_t) temp[1];
-	TxData[2] = (uint8_t) (int8_t) temp[2];
-	TxData[3] = (uint8_t) (int8_t) temp[3];
-	TxData[4] = (uint8_t) (int8_t) temp[4];
-	TxData[5] = (uint8_t) (int8_t) temp[5];
-	TxData[6] = (uint8_t) (int8_t) temp[6];
+		TxData[0] = (uint8_t) (int8_t) temp[0];
+		TxData[1] = (uint8_t) (int8_t) temp[1];
+		TxData[2] = (uint8_t) (int8_t) temp[2];
+		TxData[3] = (uint8_t) (int8_t) temp[3];
+		TxData[4] = (uint8_t) (int8_t) temp[4];
+		TxData[5] = (uint8_t) (int8_t) temp[5];
+		TxData[6] = (uint8_t) (int8_t) temp[6];
 
-	// Checksum = sum of bytes 0–6, no seed
-	uint8_t checksum = 0u;
-	for (uint8_t i = 0u; i < 7u; i++)
-		checksum += TxData[i];
-	TxData[7] = checksum + 65;
+		// Checksum = sum of bytes 0–6, no seed
+		uint8_t checksum = 0u;
+		for (uint8_t i = 0u; i < 7u; i++)
+			checksum += TxData[i];
+		TxData[7] = checksum + 65;
 
-	return HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
+		return HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
+	}
 }
 
 // send the max/min temperatures to the BMS over CAN
 static HAL_StatusTypeDef CAN_SendTemperatureStatistics(TempStatistics_t *stats) {
-	TxHeader.ExtId = 0x1839F380;
-	TxHeader.IDE = CAN_ID_EXT;
-	TxHeader.RTR = CAN_RTR_DATA;
-	TxHeader.DLC = 8u;
-	TxHeader.TransmitGlobalTime = DISABLE;
+	if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0) { // ensure CAN mailbox is open to receive
+		TxHeader.ExtId = 0x1839F380;
+		TxHeader.IDE = CAN_ID_EXT;
+		TxHeader.RTR = CAN_RTR_DATA;
+		TxHeader.DLC = 8u;
+		TxHeader.TransmitGlobalTime = DISABLE;
 
-	TxData[0] = 0;
-	TxData[1] = (uint8_t) (int8_t) stats->min_temp;
-	TxData[2] = (uint8_t) (int8_t) stats->max_temp;
-	//	TxData[3] = (uint8_t) (int8_t) 67;
-	TxData[3] = (uint8_t) (int8_t) stats->max_channel;
-	TxData[4] = 1;
-	TxData[5] = 1;
-	TxData[6] = 0;
+		TxData[0] = 0;
+		TxData[1] = (uint8_t) (int8_t) stats->min_temp;
+		TxData[2] = (uint8_t) (int8_t) stats->max_temp;
+		//	TxData[3] = (uint8_t) (int8_t) 67;
+		TxData[3] = (uint8_t) (int8_t) stats->max_channel;
+		TxData[4] = 1;
+		TxData[5] = 1;
+		TxData[6] = 0;
 
-	// Checksum = sum of bytes 0–6, no seed
-	uint8_t checksum = 0u;
-	for (uint8_t i = 0u; i < 7u; i++)
-		checksum += TxData[i];
-	TxData[7] = checksum + 65;
+		// Checksum = sum of bytes 0–6, no seed
+		uint8_t checksum = 0u;
+		for (uint8_t i = 0u; i < 7u; i++)
+			checksum += TxData[i];
+		TxData[7] = checksum + 65;
 
-	return HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
+		return HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
+	}
 }
 
 static void CAN_Init_Filter(void) {
@@ -361,54 +365,17 @@ static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
 			/* Reset filter state — each channel scan starts fresh */
 			Biquad_Reset(mux, ch);
 
-			if (mux == 2 && ch == 4) {
-				uint8_t daq_samples[7] = { 0 };
-				uint8_t daq_idx = 0;
-				uint32_t daq_packet_seq = 0;
+			for (int i = 0; i < 500; i++) {
+				uint16_t raw = ADC1_ReadRawSettled(); // each sample takes 4us
 
-				for (int i = 0; i < 500; i++) {
-					uint16_t raw = ADC1_ReadRawSettled(); // each sample takes 4us
-
-					/* Apply biquad lowpass (5 kHz) to attenuate 20 kHz EMI before
-					 * doing anything else with the sample */
-					double filtered = Biquad_Process(mux, ch, (double) raw);
-					uint16_t raw_f = (uint16_t) (filtered + 0.5); // round to nearest int
-
-					daq_samples[daq_idx] = (uint8_t) (100.0f
-							* ((3.0f * (float) raw_f) / 4095.0f));
-					daq_idx++;
-
-					if (daq_idx == 7) {
-						uint32_t daq_id = DAQ_BASE_ID + daq_packet_seq;
-						CAN_SendChannelTemp(daq_id, daq_samples);
-						daq_packet_seq++;
-						daq_idx = 0;
-						memset(daq_samples, 0, sizeof(daq_samples));
-					}
-
-					if (raw_f <= 1911 || raw_f >= 2962) { // only accept temps between 0 and 60C
-						faults++;
-						continue;
-					}
-					sum += raw_f;
-					count++;
-				}
-
-			} else {
-				for (int i = 0; i < 500; i++) {
-					uint16_t raw = ADC1_ReadRawSettled(); // each sample takes 4us
-
-					/* Apply biquad lowpass (5 kHz) to attenuate 20 kHz EMI */
 //					double filtered = Biquad_Process(mux, ch, (double) raw);
 //					uint16_t raw_f = (uint16_t) (filtered + 0.5);
-
-					if (raw <= 1911 || raw >= 2962) { // only accept temps between 0 and 60C
-						faults++;
-						continue;
-					}
-					sum += raw;
-					count++;
+				if (raw <= 1911 || raw >= 2962) { // only accept temps between 0 and 60C
+					faults++;
+					continue;
 				}
+				sum += raw;
+				count++;
 			}
 
 			float temp_c;
