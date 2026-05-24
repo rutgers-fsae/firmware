@@ -276,7 +276,7 @@ void loop() {
     fanDuty = 60;
   }
 
-  setFanDuty(fanDuty);
+  setFanDuty(20);
 
   // ── Serial output every 500 ms ────────────────────────────────────────
   if (millis() - lastPrintTime >= printInterval) {
