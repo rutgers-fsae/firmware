@@ -1,0 +1,21 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "DAQ CSV Grapher" [ref=e5] [cursor=pointer]:
+      - /url: /
+  - main [ref=e6]:
+    - generic [ref=e7]:
+      - heading "Upload CSV" [level=3] [ref=e8]
+      - textbox "Upload password" [ref=e9]
+      - button "Choose File" [ref=e10]
+      - button "Upload" [disabled] [ref=e11]
+    - generic [ref=e12]:
+      - heading "Datasets" [level=2] [ref=e13]
+      - list [ref=e14]:
+        - listitem [ref=e15]:
+          - link "May_30_2026_Peter" [ref=e16] [cursor=pointer]:
+            - /url: /datasets/may-30-2026-peter
+          - text: (May_30_2026_Peter.csv)
+        - listitem [ref=e17]:
+          - link "May_22_2026_Peter" [ref=e18] [cursor=pointer]:
+            - /url: /datasets/may-22-2026-peter
+          - text: (May_22_2026_Peter.csv)

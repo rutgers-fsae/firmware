@@ -1,0 +1,31 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - link "DAQ CSV Grapher" [ref=e5] [cursor=pointer]:
+      - /url: /
+  - main [ref=e6]:
+    - paragraph [ref=e7]:
+      - link "Back to datasets" [ref=e8] [cursor=pointer]:
+        - /url: /
+    - 'heading "Dataset: may-30-2026-peter" [level=2] [ref=e9]'
+    - generic [ref=e13]:
+      - heading "Chart Builder" [level=3] [ref=e14]
+      - combobox [ref=e15]:
+        - option "Line" [selected]
+        - option "Scatter"
+        - option "Bar"
+        - option "Histogram"
+        - option "Box"
+      - combobox [ref=e16]:
+        - option "X Axis" [selected]
+        - option "Time"
+        - option "Battery Temp"
+        - option "Motor Temp"
+        - option "Motor Speed"
+      - combobox [ref=e17]:
+        - option "Y Axis" [selected]
+        - option "Time"
+        - option "Battery Temp"
+        - option "Motor Temp"
+        - option "Motor Speed"
+      - button "Render" [disabled] [ref=e18]
+    - paragraph [ref=e12]: No chart data yet.

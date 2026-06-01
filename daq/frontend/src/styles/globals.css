@@ -1,0 +1,115 @@
+:root {
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --text: #102031;
+  --muted: #35516b;
+  --bg: linear-gradient(180deg, #f3f8ff, #e7f3ef);
+  --panel-bg: #ffffffc9;
+  --panel-border: #cad8ea;
+  --input-bg: #ffffff;
+  --input-border: #b8cadf;
+  --button-bg: #1f5ea8;
+  --button-text: #f6fbff;
+  --button-bg-hover: #174a87;
+  --button-disabled: #a9bfd8;
+  color: var(--text);
+  background: var(--bg);
+}
+
+:root[data-theme="dark"] {
+  --text: #e2ecff;
+  --muted: #a8bdd7;
+  --bg: radial-gradient(circle at top, #1f2d44, #0b111b 55%);
+  --panel-bg: #111a28e6;
+  --panel-border: #2e4260;
+  --input-bg: #0e1826;
+  --input-border: #345170;
+  --button-bg: #2d7bd8;
+  --button-text: #f4f9ff;
+  --button-bg-hover: #2669b7;
+  --button-disabled: #516683;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app-shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.app-header {
+  padding: 1rem;
+  font-size: 1.3rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+main {
+  display: grid;
+  gap: 1rem;
+}
+
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 1rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+input, select, button {
+  font: inherit;
+  padding: 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text);
+}
+
+button {
+  background: var(--button-bg);
+  color: var(--button-text);
+  border-color: transparent;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--button-bg-hover);
+}
+
+button:disabled {
+  background: var(--button-disabled);
+  cursor: not-allowed;
+}
+
+a {
+  color: var(--text);
+}
+
+p {
+  color: var(--muted);
+}
+
+.theme-toggle {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+}
+
+.theme-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
