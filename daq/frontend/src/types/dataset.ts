@@ -9,5 +9,7 @@ export type Dataset = {
 export type SchemaColumn = {
   name: string;
   type: string;
+  unit?: string | null;
+  display_name?: string;
   sample_values: string[];
 };

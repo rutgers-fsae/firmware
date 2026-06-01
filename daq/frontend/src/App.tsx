@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Monitor, Moon, Sun } from "lucide-react";
 import { Link, Route, Routes } from "react-router-dom";
 import { DatasetListPage } from "./pages/DatasetListPage";
 import { DatasetPage } from "./pages/DatasetPage";
@@ -57,21 +58,23 @@ export default function App() {
         ? "Theme: Light"
         : "Theme: Dark";
 
-  const themeIcon =
-    themePreference === "system" ? "◐" : themePreference === "light" ? "☀" : "☾";
+  const ThemeIcon =
+    themePreference === "system" ? Monitor : themePreference === "light" ? Sun : Moon;
 
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <Link to="/">DAQ CSV Grapher</Link>
+    <div className="mx-auto min-h-screen w-11/12 px-4 py-4 text-text md:w-5/6">
+      <header className="mb-4 flex items-center justify-between gap-4 rounded-2xl border border-border bg-panel px-4 py-3 backdrop-blur">
+        <Link to="/" className="text-xl font-semibold tracking-tight">
+          DAQ CSV Grapher
+        </Link>
         <button
           type="button"
-          className="theme-toggle"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-input-border bg-input text-text transition hover:bg-button hover:text-button-text"
           onClick={cycleTheme}
           aria-label={themeButtonLabel}
           title={themeButtonLabel}
         >
-          <span aria-hidden="true" className="theme-icon">{themeIcon}</span>
+          <ThemeIcon size={16} strokeWidth={2} aria-hidden="true" />
         </button>
       </header>
       <Routes>

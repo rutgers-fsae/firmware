@@ -4,7 +4,7 @@ from app.config import settings
 from app.models.chart import ChartRequest, PreviewRequest
 from app.models.dataset import DatasetListItem
 from app.services.chart_builder import build_chart_payload
-from app.services.csv_reader import apply_filters, read_dataset
+from app.services.csv_reader import apply_filters, read_dataset, read_dataset_with_units
 from app.services.dataset_registry import registry
 from app.services.schema_inference import infer_schema
 
@@ -28,8 +28,8 @@ def list_datasets() -> list[DatasetListItem]:
 
 @router.get("/{slug}/schema")
 def get_dataset_schema(slug: str) -> dict:
-    df = read_dataset(slug)
-    return {"columns": infer_schema(df), "row_count": len(df)}
+    df, units = read_dataset_with_units(slug)
+    return {"columns": infer_schema(df, units), "row_count": len(df)}
 
 
 @router.post("/{slug}/preview")

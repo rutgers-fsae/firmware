@@ -22,12 +22,29 @@ export function UploadPanel({ onUploaded }: Props) {
   }
 
   return (
-    <section className="panel">
-      <h3>Upload CSV</h3>
-      <input type="password" placeholder="Upload password" value={password} onChange={(e) => setPassword(e.target.value)} />
-      <input type="file" accept=".csv" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-      <button onClick={submit} disabled={!file || !password}>Upload</button>
-      {status && <p>{status}</p>}
+    <section className="grid gap-3 rounded-2xl border border-border bg-panel p-4 backdrop-blur">
+      <h3 className="text-lg font-semibold">Upload CSV</h3>
+      <input
+        type="password"
+        placeholder="Upload password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        className="rounded-lg border border-input-border bg-input px-3 py-2 text-sm"
+      />
+      <input
+        type="file"
+        accept=".csv"
+        onChange={(e) => setFile(e.target.files?.[0] || null)}
+        className="rounded-lg border border-input-border bg-input px-3 py-2 text-sm"
+      />
+      <button
+        onClick={submit}
+        disabled={!file || !password}
+        className="rounded-lg bg-button px-3 py-2 text-sm font-medium text-button-text transition hover:bg-button-hover disabled:cursor-not-allowed disabled:bg-button-disabled"
+      >
+        Upload
+      </button>
+      {status && <p className="text-sm text-muted">{status}</p>}
     </section>
   );
 }

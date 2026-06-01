@@ -1,5 +1,6 @@
-from pathlib import Path
 import csv
+from pathlib import Path
+import re
 
 import pandas as pd
 from pandas.errors import ParserError
@@ -20,20 +21,26 @@ def dataset_path_for_slug(slug: str) -> Path:
 
 
 def read_dataset(slug: str) -> pd.DataFrame:
+    frame, _ = read_dataset_with_units(slug)
+    return frame
+
+
+def read_dataset_with_units(slug: str) -> tuple[pd.DataFrame, dict[str, str | None]]:
     path = dataset_path_for_slug(slug)
     try:
-        return pd.read_csv(path)
+        frame = pd.read_csv(path)
+        return frame, _infer_units_from_column_names(frame.columns.tolist())
     except ParserError:
         try:
             frame = pd.read_csv(path, engine="python", on_bad_lines="skip")
             if frame.columns[0] == "Format":
                 return _read_motec_csv(path)
-            return frame
+            return frame, _infer_units_from_column_names(frame.columns.tolist())
         except Exception as exc:
             raise bad_request(f"Unable to parse CSV: {exc}") from exc
 
 
-def _read_motec_csv(path: Path) -> pd.DataFrame:
+def _read_motec_csv(path: Path) -> tuple[pd.DataFrame, dict[str, str | None]]:
     with path.open("r", encoding="utf-8", newline="") as handle:
         rows = list(csv.reader(handle))
 
@@ -45,6 +52,9 @@ def _read_motec_csv(path: Path) -> pd.DataFrame:
 
     if header_index is None:
         raise bad_request("Unable to parse CSV: no data header row found")
+
+    units_row_index = header_index + 1
+    units_row = rows[units_row_index] if units_row_index < len(rows) else []
 
     frame = pd.read_csv(path, skiprows=header_index, engine="python", on_bad_lines="skip")
     frame = frame.dropna(how="all")
@@ -58,7 +68,26 @@ def _read_motec_csv(path: Path) -> pd.DataFrame:
         if converted.notna().any():
             frame[col] = converted
 
-    return frame.reset_index(drop=True)
+    clean = frame.reset_index(drop=True)
+    units = _units_map_for_columns(clean.columns.tolist(), units_row)
+    return clean, units
+
+
+def _units_map_for_columns(columns: list[str], raw_units: list[str]) -> dict[str, str | None]:
+    units: dict[str, str | None] = {}
+    for index, column in enumerate(columns):
+        value = raw_units[index].strip() if index < len(raw_units) else ""
+        units[column] = value.strip('"') or None
+    return units
+
+
+def _infer_units_from_column_names(columns: list[str]) -> dict[str, str | None]:
+    units: dict[str, str | None] = {}
+    pattern = re.compile(r"\(([^)]+)\)\s*$")
+    for column in columns:
+        match = pattern.search(column)
+        units[column] = match.group(1).strip() if match else None
+    return units
 
 
 def apply_filters(df: pd.DataFrame, filters: list[dict]) -> pd.DataFrame:
