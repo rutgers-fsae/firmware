@@ -68,12 +68,12 @@ void logToSD(unsigned long ts,
   char apps1s[12];
   char apps2s[12];
 
-  dtostrf(apps1, 0, 2, apps1Str);
-  dtostrf(apps2, 0, 2, apps2Str);
+  dtostrf(apps1, 0, 2, apps1s);
+  dtostrf(apps2, 0, 2, apps2s);
 
   char row[56];
   snprintf(row, sizeof(row), "%lu,%.2f,%.2f,%d,%d,%d,%d,%d,%d,%d",
-           ts, apps1s, apps2,s
+           ts, apps1s, apps2s
            brakeRaw        ? 1 : 0,
            brakeLatch      ? 1 : 0,
            pedalPressed    ? 1 : 0,
