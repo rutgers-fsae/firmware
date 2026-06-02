@@ -64,9 +64,16 @@ void logToSD(unsigned long ts,
   lastLogTime = ts;
 
   // Build row into a stack buffer — avoids String heap fragmentation
+
+  char apps1s[12];
+  char apps2s[12];
+
+  dtostrf(apps1, 0, 2, apps1s);
+  dtostrf(apps2, 0, 2, apps2s);
+
   char row[56];
   snprintf(row, sizeof(row), "%lu,%.2f,%.2f,%d,%d,%d,%d,%d,%d,%d",
-           ts, apps1, apps2,
+           ts, apps1s, apps2s
            brakeRaw        ? 1 : 0,
            brakeLatch      ? 1 : 0,
            pedalPressed    ? 1 : 0,
