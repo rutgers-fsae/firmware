@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 type Props = {
   data: any[];
   theme: "light" | "dark";
-  axisTitles: { xTitle: string; yTitle: string } | null;
+  axisTitles: { xTitle: string; yTitle: string; traceLabels: Record<string, string> } | null;
 };
 
 export function PlotView({ data, theme, axisTitles }: Props) {
@@ -24,9 +24,19 @@ export function PlotView({ data, theme, axisTitles }: Props) {
   if (!data.length) return <p>No chart data yet.</p>;
   if (!PlotComponent) return <p>Loading chart engine...</p>;
   const dark = theme === "dark";
+  const traceLabels = axisTitles?.traceLabels || {};
+  const labeledData = data.map((trace) => {
+    const name = typeof trace.name === "string" ? trace.name : "";
+    const directLabel = traceLabels[name];
+    const groupedLabel = Object.entries(traceLabels).find(([column]) => name.endsWith(` - ${column}`));
+    return {
+      ...trace,
+      name: directLabel || (groupedLabel ? name.replace(` - ${groupedLabel[0]}`, ` - ${groupedLabel[1]}`) : name),
+    };
+  });
   return (
     <PlotComponent
-      data={data}
+      data={labeledData}
       layout={{
         autosize: true,
         title: "Dataset Graph",

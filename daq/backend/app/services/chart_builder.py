@@ -1,11 +1,16 @@
 from typing import Any
 
+import numpy as np
+
 from app.config import settings
 
 
 def build_chart_payload(df, chart_type: str, x_column: str | None, y_columns: list[str], group_by: str | None) -> dict[str, Any]:
-    if len(df) > settings.max_chart_rows:
-        df = df.head(settings.max_chart_rows)
+    source_row_count = len(df)
+    was_downsampled = source_row_count > settings.max_chart_rows
+    if was_downsampled:
+        indices = np.linspace(0, source_row_count - 1, settings.max_chart_rows, dtype=int)
+        df = df.iloc[np.unique(indices)].reset_index(drop=True)
 
     data = []
     if group_by and group_by in df.columns:
@@ -32,4 +37,10 @@ def build_chart_payload(df, chart_type: str, x_column: str | None, y_columns: li
                     }
                 )
 
-    return {"data": data, "row_count": len(df)}
+    return {
+        "data": data,
+        "row_count": len(df),
+        "source_row_count": source_row_count,
+        "returned_row_count": len(df),
+        "was_downsampled": was_downsampled,
+    }

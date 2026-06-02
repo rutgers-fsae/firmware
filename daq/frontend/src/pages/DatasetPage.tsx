@@ -34,7 +34,7 @@ type GraphState = {
   id: number;
   name: string;
   plotData: any[];
-  axisTitles: { xTitle: string; yTitle: string } | null;
+  axisTitles: { xTitle: string; yTitle: string; traceLabels: Record<string, string> } | null;
   chartError: string | null;
   isLoading: boolean;
 };
@@ -47,7 +47,11 @@ type SortableGraphCardProps = {
   theme: "light" | "dark";
   onRemove: (id: number) => void;
   onRename: (id: number, name: string) => void;
-  onRun: (graphId: number, payload: ChartRequest, titles: { xTitle: string; yTitle: string }) => void;
+  onRun: (
+    graphId: number,
+    payload: ChartRequest,
+    titles: { xTitle: string; yTitle: string; traceLabels: Record<string, string> },
+  ) => void;
 };
 
 function SortableGraphCard({ graph, index, totalGraphs, columns, theme, onRemove, onRename, onRun }: SortableGraphCardProps) {
@@ -206,7 +210,11 @@ export function DatasetPage({ theme }: Props) {
 
   const graphGridClass = `grid grid-cols-1 gap-4 ${desktopLayout === "one" ? "lg:grid-cols-1" : "lg:grid-cols-2"}`;
 
-  async function runChart(graphId: number, payload: ChartRequest, titles: { xTitle: string; yTitle: string }) {
+  async function runChart(
+    graphId: number,
+    payload: ChartRequest,
+    titles: { xTitle: string; yTitle: string; traceLabels: Record<string, string> },
+  ) {
     setGraphs((prev) =>
       prev.map((graph) =>
         graph.id === graphId ? { ...graph, chartError: null, isLoading: true } : graph,
