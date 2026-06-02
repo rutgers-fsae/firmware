@@ -1,6 +1,7 @@
-// Apps Board 2026 v0.0.3 - Jeevan Shah
+// Apps Board 2026 v0.0.4 - Jeevan Shah
 // v0.0.2: Added brake release debounce to handle residual hydraulic pressure
 // v0.0.3: Added SD card CSV logging (CS on D10)
+// v0.0.4: Keep log file open for 10ms logging; flush every 50 rows to limit data loss on power cut
 
 #include <SPI.h>
 #include <SD.h>
@@ -9,15 +10,18 @@
 #define BRAKE_RELEASE_DEBOUNCE_MS     50
 #define SD_CS_PIN                     10
 #define LOG_FILENAME                  "apps_log.csv"
-#define LOG_INTERVAL_MS               50   // log at 20 Hz — tune as needed
+#define LOG_INTERVAL_MS               10   // 100 Hz
+#define FLUSH_EVERY_N_ROWS            50   // flush to card every 50 rows (~500ms)
 
 int lp1 = A0;
 int lp2 = A1;
 int bs  = 2;
 int out = 3;
 
+File          logFile;
 bool          sdReady        = false;
 unsigned long lastLogTime    = 0;
+uint8_t       rowsSinceFlush = 0;
 
 // ── SD ────────────────────────────────────────────────────────────────────────
 
@@ -28,53 +32,56 @@ void initSD() {
     sdReady = false;
     return;
   }
-  sdReady = true;
-  Serial.println("SD OK.");
 
-  // Write header only if the file is brand new
-  if (!SD.exists(LOG_FILENAME)) {
-    File f = SD.open(LOG_FILENAME, FILE_WRITE);
-    if (f) {
-      f.println("timestamp_ms,apps1_pct,apps2_pct,brake_raw,brake_latched,"
-                "pedal_pressed,mismatch_fault,brake_throttle_fault,"
-                "active_fault,implausibility");
-      f.close();
-    } else {
-      Serial.println("Could not create log file.");
-      sdReady = false;
-    }
-  }
-}
+  // Delete old file so each power cycle starts a clean log
+  if (SD.exists(LOG_FILENAME)) SD.remove(LOG_FILENAME);
 
-void logToSD(unsigned long ts,
-             float apps1, float apps2,
-             bool brakeRaw, bool brakeLatch,
-             bool pedalPressed,
-             bool mismatchFault, bool brakeThrottleFault,
-             bool activeFault,  bool implaus) {
-
-  if (!sdReady) return;
-  if (ts - lastLogTime < LOG_INTERVAL_MS) return;
-  lastLogTime = ts;
-
-  File f = SD.open(LOG_FILENAME, FILE_WRITE);
-  if (!f) {
-    Serial.println("SD write failed.");
+  logFile = SD.open(LOG_FILENAME, FILE_WRITE);
+  if (!logFile) {
+    Serial.println("Could not create log file.");
+    sdReady = false;
     return;
   }
 
-  f.print(ts);                 f.print(',');
-  f.print(apps1, 2);           f.print(',');
-  f.print(apps2, 2);           f.print(',');
-  f.print(brakeRaw   ? 1 : 0); f.print(',');
-  f.print(brakeLatch ? 1 : 0); f.print(',');
-  f.print(pedalPressed      ? 1 : 0); f.print(',');
-  f.print(mismatchFault     ? 1 : 0); f.print(',');
-  f.print(brakeThrottleFault? 1 : 0); f.print(',');
-  f.print(activeFault       ? 1 : 0); f.print(',');
-  f.println(implaus          ? 1 : 0);
+  logFile.println("timestamp_ms,apps1_pct,apps2_pct,brake_raw,brake_latched,"
+                  "pedal_pressed,mismatch_fault,brake_throttle_fault,"
+                  "active_fault,implausibility");
+  logFile.flush();
 
-  f.close();
+  sdReady = true;
+  Serial.println("SD OK — logging started.");
+}
+
+void logToSD(unsigned long ts,
+             float apps1,    float apps2,
+             bool brakeRaw,  bool brakeLatch,
+             bool pedalPressed,
+             bool mismatchFault, bool brakeThrottleFault,
+             bool activeFault,   bool implaus) {
+
+  if (!sdReady)                          return;
+  if (ts - lastLogTime < LOG_INTERVAL_MS) return;
+  lastLogTime = ts;
+
+  // Build row into a stack buffer — avoids String heap fragmentation
+  char row[56];
+  snprintf(row, sizeof(row), "%lu,%.2f,%.2f,%d,%d,%d,%d,%d,%d,%d",
+           ts, apps1, apps2,
+           brakeRaw        ? 1 : 0,
+           brakeLatch      ? 1 : 0,
+           pedalPressed    ? 1 : 0,
+           mismatchFault   ? 1 : 0,
+           brakeThrottleFault ? 1 : 0,
+           activeFault     ? 1 : 0,
+           implaus         ? 1 : 0);
+
+  logFile.println(row);
+  rowsSinceFlush++;
+
+  if (rowsSinceFlush >= FLUSH_EVERY_N_ROWS) {
+    logFile.flush();
+    rowsSinceFlush = 0;
+  }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -90,8 +97,8 @@ bool read_brake_switch() {
 float sensor_transfer_fcn(int rawVal, int sensorNum) {
   float voltage = 5.0f * rawVal / 1023.0f;
   switch (sensorNum) {
-    case 1:  return (40.0f * voltage) - 49.0f;
-    case 2:  return (40.0f * voltage) - 32.0f;
+    case 1:  return (69.44f * voltage) - 182.64f;
+    case 2:  return (68.49f * voltage) - 148.63f;
     default:
       Serial.println("Invalid sensor number");
       return -1.0f;
@@ -177,8 +184,8 @@ void loop() {
 
   logToSD(presentTimer,
           sensor1Percentage, sensor2Percentage,
-          rawBrake, brakeLatched,
+          rawBrake,       brakeLatched,
           pedalPressed,
           appsMismatchFault, brakeThrottleFault,
-          activeFault, implausibility);
+          activeFault,    implausibility);
 }
