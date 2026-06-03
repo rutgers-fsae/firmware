@@ -7,7 +7,13 @@ type Props = {
   columns: SchemaColumn[];
   onRun: (
     payload: ChartRequest,
-    axisTitles: { xTitle: string; yTitle: string; traceLabels: Record<string, string> },
+    axisTitles: {
+      xTitle: string;
+      yTitle: string;
+      y2Title?: string;
+      traceLabels: Record<string, string>;
+      traceAxisByColumn: Record<string, "y" | "y2">;
+    },
   ) => void;
 };
 
@@ -123,16 +129,24 @@ export function ChartBuilder({ columns, onRun }: Props) {
     );
   }
 
-  function yAxisTitle() {
-    if (yColumns.length === 1) {
-      return columnLabel(yColumns[0]);
-    }
+  const selectedUnits = Array.from(new Set(yColumns.map((column) => columnUnit(column) || "unitless")));
+  const hasMultipleUnits = selectedUnits.length > 1;
+  const hasTooManyUnits = selectedUnits.length > 2;
+  const primaryUnit = selectedUnits[0];
+  const secondaryUnit = selectedUnits[1];
+  const primaryUnitLabel = primaryUnit === "unitless" ? "Unitless" : primaryUnit;
+  const secondaryUnitLabel = secondaryUnit === "unitless" ? "Unitless" : secondaryUnit;
 
-    const units = Array.from(new Set(yColumns.map(columnUnit).filter(Boolean)));
-    return units.length === 1 ? `Values (${units[0]})` : "Values";
+  function axisTitleForUnit(unit: string | undefined) {
+    if (!unit) return "Values";
+    return unit === "unitless" ? "Values" : `Values (${unit})`;
   }
 
-  const mixedUnits = Array.from(new Set(yColumns.map(columnUnit).filter(Boolean))).length > 1;
+  function traceAxisByColumn() {
+    return Object.fromEntries(
+      yColumns.map((column) => [column, (columnUnit(column) || "unitless") === primaryUnit ? "y" : "y2"]),
+    ) as Record<string, "y" | "y2">;
+  }
   const yDropdownLabel =
     yColumns.length === 0 ? "Select Y Series" : yColumns.length === 1 ? "1 series selected" : `${yColumns.length} series selected`;
   const xDropdownLabel = xColumn ? columnLabel(xColumn) : "Select X Axis";
@@ -256,20 +270,27 @@ export function ChartBuilder({ columns, onRun }: Props) {
           ))}
         </div>
       )}
-      {mixedUnits && (
+      {hasMultipleUnits && !hasTooManyUnits && (
+        <p className="rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs text-muted">
+          Using dual Y-axes for {primaryUnitLabel} and {secondaryUnitLabel}.
+        </p>
+      )}
+      {hasTooManyUnits && (
         <p className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs text-muted">
-          Selected Y columns use different units. Consider separate graphs if scale comparison matters.
+          More than two Y-axis units selected. Only two axes are supported per graph.
         </p>
       )}
       <button
-        disabled={yColumns.length === 0}
+        disabled={yColumns.length === 0 || hasTooManyUnits}
         onClick={() =>
           onRun(
             { chart_type: chartType, x_column: xColumn || undefined, y_columns: yColumns, filters: [] },
             {
               xTitle: xColumn ? columnLabel(xColumn) : "Index",
-              yTitle: yAxisTitle(),
+              yTitle: yColumns.length === 1 ? columnLabel(yColumns[0]) : axisTitleForUnit(primaryUnit),
+              y2Title: secondaryUnit ? axisTitleForUnit(secondaryUnit) : undefined,
               traceLabels: Object.fromEntries(yColumns.map((column) => [column, columnLabel(column)])),
+              traceAxisByColumn: traceAxisByColumn(),
             },
           )
         }

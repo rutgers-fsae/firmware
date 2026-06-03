@@ -34,7 +34,13 @@ type GraphState = {
   id: number;
   name: string;
   plotData: any[];
-  axisTitles: { xTitle: string; yTitle: string; traceLabels: Record<string, string> } | null;
+  axisTitles: {
+    xTitle: string;
+    yTitle: string;
+    y2Title?: string;
+    traceLabels: Record<string, string>;
+    traceAxisByColumn: Record<string, "y" | "y2">;
+  } | null;
   chartError: string | null;
   isLoading: boolean;
 };
@@ -50,7 +56,13 @@ type SortableGraphCardProps = {
   onRun: (
     graphId: number,
     payload: ChartRequest,
-    titles: { xTitle: string; yTitle: string; traceLabels: Record<string, string> },
+    titles: {
+      xTitle: string;
+      yTitle: string;
+      y2Title?: string;
+      traceLabels: Record<string, string>;
+      traceAxisByColumn: Record<string, "y" | "y2">;
+    },
   ) => void;
 };
 
@@ -213,7 +225,13 @@ export function DatasetPage({ theme }: Props) {
   async function runChart(
     graphId: number,
     payload: ChartRequest,
-    titles: { xTitle: string; yTitle: string; traceLabels: Record<string, string> },
+    titles: {
+      xTitle: string;
+      yTitle: string;
+      y2Title?: string;
+      traceLabels: Record<string, string>;
+      traceAxisByColumn: Record<string, "y" | "y2">;
+    },
   ) {
     setGraphs((prev) =>
       prev.map((graph) =>

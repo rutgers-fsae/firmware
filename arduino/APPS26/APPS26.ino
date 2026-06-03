@@ -73,7 +73,7 @@ void logToSD(unsigned long ts,
 
   char row[56];
   snprintf(row, sizeof(row), "%lu,%.2f,%.2f,%d,%d,%d,%d,%d,%d,%d",
-           ts, apps1s, apps2s
+           ts, apps1s, apps2s,
            brakeRaw        ? 1 : 0,
            brakeLatch      ? 1 : 0,
            pedalPressed    ? 1 : 0,
