@@ -2,6 +2,7 @@
 # Run: py -3.11 rfr_vn300_logger.py
 # Logs GPS, IMU, INS, and attitude data to a timestamped CSV file
 import argparse
+import math
 from vectornav import Sensor, Registers
 from datetime import datetime  # gives us current date and time
 import csv  # csv is python's built-in library for writing CSV files
@@ -12,7 +13,19 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+def distance_meters(lat1, lon1, lat2, lon2):
+    # Haversine formula to calculate distance between two lat/lon points in meters (Curved distance between 2GPS points)
+    R = 6371000  # Earth radius in meters
+    dlat = math.radians(lat2-lat1)
+    dlon = math.radians(lon2-lon1)
+    a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * \
+        math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
+    return R * 2 * math.asin(math.sqrt(a))
+
 # gives us 2 things we need from VectorNav SDK library
+
 
 # argparse lets us pass PORT and RATE from the terminal when running the script
 # CONFIG Argumentparser handles reading terminal input
@@ -25,6 +38,12 @@ PORT = args.port
 RATE = args.rate
 # creates a new filename everytime the script runs
 FILENAME = f"rfr_vn300_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+
+# LAP TIMER CONFIG
+START_LAT = 40.52653
+START_LON = -74.46526
+THRESHOLD_METERS = 5.0
+COOL_DOWN_SECONDS = 20
 
 # CSV SETUP COLS is the list that defines every coloumns in the CSV file, order = The order coloumns appear in the Excel
 # Each string is a coloumns header name
@@ -133,6 +152,8 @@ logger.info(f"Logging → {FILENAME}")
 logger.info("Ctrl+C to stop")
 
 # MAIN LOGGING LOOP
+last_lap_time = None
+lap_count = 0
 row_count = 0  # n is a row counter
 try:
     while True:
@@ -229,6 +250,20 @@ try:
             r["ins_vn"] = measurement.ins.velNed[0]
             r["ins_ve"] = measurement.ins.velNed[1]
             r["ins_vd"] = measurement.ins.velNed[2]
+            # LAP TIMER
+        # runs every loop — checks if car is within 5m of start/finish line
+        if r.get("ins_lat") is not None and r.get("ins_lon") is not None:
+            dist = distance_meters(
+                r["ins_lat"], r["ins_lon"], START_LAT, START_LON)
+            now = datetime.now()
+            if dist < THRESHOLD_METERS:
+                if last_lap_time is None or (now - last_lap_time).total_seconds() > COOL_DOWN_SECONDS:
+                    if last_lap_time is not None:
+                        lap_time = (now - last_lap_time).total_seconds()
+                        logger.info(
+                            f"Lap {lap_count} time: {lap_time:.3f} seconds")
+                    last_lap_time = now
+                    lap_count += 1
 
         w.writerow(r)   # Write row to CSV
         if row_count % 50 == 0:
