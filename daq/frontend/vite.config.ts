@@ -5,6 +5,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-  allowedHosts: ["kebab.sevenlayer.org"]
+    allowedHosts: ["kebab.sevenlayer.org"],
+    proxy: {
+      "/api": "http://localhost:8000",
+      "/health": "http://localhost:8000",
+    },
   },
 });
