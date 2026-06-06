@@ -49,7 +49,7 @@ const float TEMP_LOW  = 30.0;   // Below → fans off
 const float TEMP_HIGH = 45.0;   // Above → fans full
 
 // ── Runtime state ────────────────────────────────────────────────────────────
-uint8_t pumpDuty = 5;
+uint8_t pumpDuty = 20;
 uint8_t fanDuty  = 0;
 float   tC1      = 0.0;
 bool    daq      = false;
@@ -129,7 +129,7 @@ void setupTimer2(float freq) {
  */
 void setPumpDuty(uint8_t percent) {
   percent = constrain(percent, 0, 100);
-  OCR1A = (uint16_t)((uint32_t)ICR1 * percent / 100);
+  OCR1A = (uint16_t)((uint32_t)ICR1 * (100-percent) / 100); // account for inversion
 }
 
 /*
@@ -138,7 +138,7 @@ void setPumpDuty(uint8_t percent) {
  */
 void setFanDuty(uint8_t percent) {
   percent = constrain(percent, 0, 100);
-  OCR2B = (uint8_t)((uint16_t)OCR2A * percent / 100);
+  OCR2B = (uint8_t)((uint16_t)OCR2A * (100-percent) / 100); // account for inversion
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -192,10 +192,14 @@ void setup() {
 
   Serial.begin(115200);
 
-  // Safe initial state — pump on minimum, fan off
+  // pump start up sequence 
+  digitalWrite(PUMP_PIN, LOW);
   digitalWrite(PUMP_PIN, HIGH);
-  digitalWrite(FAN_PIN,  LOW);
   delayMicroseconds(3000);
+  setPumpDuty(95);
+  delay(100);
+
+
 
   // ── DECODE: dump EEPROM to Serial then halt ────────────────────────────
   if (DECODE) {
@@ -228,7 +232,6 @@ void setup() {
   setupTimer2(FAN_FREQ);    // D3  — fan,  25 kHz,  Fast PWM
 
   // Apply initial duty cycles
-  setPumpDuty(pumpDuty);
   setFanDuty(fanDuty);
 
   Serial.println(F("Fan/pump controller ready."));
@@ -239,6 +242,8 @@ void setup() {
 // ════════════════════════════════════════════════════════════════════════════
 
 void loop() {
+  pumpDuty = 75;
+  setPumpDuty(pumpDuty);
 
   // ── DAQ: record temperature samples to EEPROM ─────────────────────────
   if (daq) {
@@ -276,7 +281,8 @@ void loop() {
     fanDuty = 60;
   }
 
-  setFanDuty(20);
+  fanDuty = 40;
+  setFanDuty(fanDuty);
 
   // ── Serial output every 500 ms ────────────────────────────────────────
   if (millis() - lastPrintTime >= printInterval) {
