@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     data_dir: Path = Path(__file__).resolve().parents[2] / "data"
     registry_path: Path = Path(__file__).resolve().parents[1] / "storage" / "datasets.json"
     cors_origins: str = "*"
+    max_upload_bytes: int = 1024 * 1024 * 1024
+    upload_chunk_bytes: int = 1024 * 1024
     max_preview_rows: int = 200
     max_chart_rows: int = 20000
     auth_rate_limit_window_seconds: int = 60

@@ -45,6 +45,29 @@ type GraphState = {
   isLoading: boolean;
 };
 
+type PersistedGraphState = Pick<GraphState, "id" | "name" | "axisTitles">;
+
+function emptyGraph(id: number, name = `Graph ${id}`): GraphState {
+  return { id, name, plotData: [], axisTitles: null, chartError: null, isLoading: false };
+}
+
+function restoreGraph(item: Partial<GraphState>, fallbackId: number): GraphState {
+  const id = typeof item.id === "number" ? item.id : fallbackId;
+  return {
+    ...emptyGraph(id),
+    name: typeof item.name === "string" ? item.name : `Graph ${id}`,
+    axisTitles: item.axisTitles || null,
+  };
+}
+
+function graphForStorage(graph: GraphState): PersistedGraphState {
+  return {
+    id: graph.id,
+    name: graph.name,
+    axisTitles: graph.axisTitles,
+  };
+}
+
 type SortableGraphCardProps = {
   graph: GraphState;
   index: number;
@@ -135,19 +158,15 @@ export function DatasetPage({ theme }: Props) {
     const raw = localStorage.getItem(key);
     if (raw) {
       try {
-        const parsed = JSON.parse(raw) as GraphState[];
+        const parsed = JSON.parse(raw) as Partial<GraphState>[];
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return parsed.map((item, index) => restoreGraph(item, index + 1));
         }
       } catch {
-        return [
-          { id: 1, name: "Graph 1", plotData: [], axisTitles: null, chartError: null, isLoading: false },
-        ];
+        return [emptyGraph(1)];
       }
     }
-    return [
-      { id: 1, name: "Graph 1", plotData: [], axisTitles: null, chartError: null, isLoading: false },
-    ];
+    return [emptyGraph(1)];
   });
   const [activeGraphId, setActiveGraphId] = useState<number | null>(null);
   const [desktopLayout, setDesktopLayout] = useState<"one" | "two">(() => {
@@ -163,14 +182,7 @@ export function DatasetPage({ theme }: Props) {
   function addGraph() {
     setGraphs((prev) => [
       ...prev,
-      {
-        id: nextGraphId,
-        name: `Graph ${nextGraphId}`,
-        plotData: [],
-        axisTitles: null,
-        chartError: null,
-        isLoading: false,
-      },
+      emptyGraph(nextGraphId),
     ]);
     setNextGraphId((prev) => prev + 1);
   }
@@ -217,7 +229,7 @@ export function DatasetPage({ theme }: Props) {
   useEffect(() => {
     const maxGraphId = graphs.reduce((acc, graph) => Math.max(acc, graph.id), 1);
     setNextGraphId(maxGraphId + 1);
-    localStorage.setItem(`daq-graphs-${slug}`, JSON.stringify(graphs));
+    localStorage.setItem(`daq-graphs-${slug}`, JSON.stringify(graphs.map(graphForStorage)));
   }, [graphs, slug]);
 
   const graphGridClass = `grid grid-cols-1 gap-4 ${desktopLayout === "one" ? "lg:grid-cols-1" : "lg:grid-cols-2"}`;

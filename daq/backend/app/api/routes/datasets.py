@@ -43,6 +43,20 @@ def preview_dataset(slug: str, payload: PreviewRequest) -> dict:
 
 @router.post("/{slug}/chart-data")
 def chart_data(slug: str, payload: ChartRequest) -> dict:
-    df = read_dataset(slug)
-    filtered = apply_filters(df, [rule.model_dump() for rule in payload.filters])
+    filters = [rule.model_dump() for rule in payload.filters]
+    df = read_dataset(slug, _columns_for_chart(payload, filters))
+    filtered = apply_filters(df, filters)
     return build_chart_payload(filtered, payload.chart_type, payload.x_column, payload.y_columns, payload.group_by)
+
+
+def _columns_for_chart(payload: ChartRequest, filters: list[dict]) -> set[str] | None:
+    columns = set(payload.y_columns)
+    if payload.x_column:
+        columns.add(payload.x_column)
+    if payload.group_by:
+        columns.add(payload.group_by)
+    for rule in filters:
+        column = rule.get("column")
+        if isinstance(column, str):
+            columns.add(column)
+    return columns or None

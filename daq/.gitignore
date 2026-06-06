@@ -28,3 +28,6 @@ infra/.env
 
 # Logs
 *.log
+
+# Generated dataset caches
+*.parquet
