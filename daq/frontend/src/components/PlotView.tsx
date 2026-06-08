@@ -18,10 +18,12 @@ type PlotComponentProps = {
   data: PlotTrace[];
   layout: Record<string, unknown>;
   style: CSSProperties;
+  onError?: (error: Error) => void;
 };
 
 export function PlotView({ data, theme, axisTitles }: Props) {
   const [PlotComponent, setPlotComponent] = useState<ComponentType<PlotComponentProps> | null>(null);
+  const [renderError, setRenderError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -36,8 +38,13 @@ export function PlotView({ data, theme, axisTitles }: Props) {
     };
   }, []);
 
+  useEffect(() => {
+    setRenderError(null);
+  }, [data, axisTitles, theme]);
+
   if (!data.length) return <p className="p-6 text-sm text-muted">No chart data yet.</p>;
   if (!PlotComponent) return <p className="p-6 text-sm text-muted">Loading chart engine...</p>;
+  if (renderError) return <p className="p-6 text-sm text-[var(--danger)]">Chart render failed: {renderError}</p>;
   const dark = theme === "dark";
   const colors = dark
     ? { paper: "#121821", plot: "#121821", text: "#e7edf5", grid: "#2b3544", zero: "#465466" }
@@ -49,36 +56,42 @@ export function PlotView({ data, theme, axisTitles }: Props) {
     const directLabel = traceLabels[name];
     const groupedLabel = Object.entries(traceLabels).find(([column]) => name.endsWith(` - ${column}`));
     const sourceColumn = directLabel ? name : groupedLabel?.[0];
-    return {
+    const labeledTrace = {
       ...trace,
       name: directLabel || (groupedLabel ? name.replace(` - ${groupedLabel[0]}`, ` - ${groupedLabel[1]}`) : name),
-      yaxis: sourceColumn ? traceAxisByColumn[sourceColumn] : undefined,
     };
+    const traceAxis = sourceColumn ? traceAxisByColumn[sourceColumn] : undefined;
+    return traceAxis ? { ...labeledTrace, yaxis: traceAxis } : labeledTrace;
   });
   const hasRightAxis = Boolean(axisTitles?.y2Title);
+  const layout = {
+    autosize: true,
+    title: "Dataset Graph",
+    margin: { l: 64, r: hasRightAxis ? 64 : 24, t: 48, b: 56 },
+    xaxis: { title: { text: axisTitles?.xTitle || "" }, gridcolor: colors.grid, zerolinecolor: colors.zero },
+    yaxis: { title: { text: axisTitles?.yTitle || "" }, gridcolor: colors.grid, zerolinecolor: colors.zero },
+    ...(hasRightAxis
+      ? {
+          yaxis2: {
+            title: { text: axisTitles?.y2Title || "" },
+            overlaying: "y",
+            side: "right",
+            gridcolor: colors.grid,
+            zerolinecolor: colors.zero,
+          },
+        }
+      : {}),
+    paper_bgcolor: colors.paper,
+    plot_bgcolor: colors.plot,
+    font: { color: colors.text, family: "Inter, ui-sans-serif, system-ui, sans-serif" },
+  };
+
   return (
     <PlotComponent
       data={labeledData}
-      layout={{
-        autosize: true,
-        title: "Dataset Graph",
-        margin: { l: 64, r: hasRightAxis ? 64 : 24, t: 48, b: 56 },
-        xaxis: { title: { text: axisTitles?.xTitle || "" }, gridcolor: colors.grid, zerolinecolor: colors.zero },
-        yaxis: { title: { text: axisTitles?.yTitle || "" }, gridcolor: colors.grid, zerolinecolor: colors.zero },
-        yaxis2: hasRightAxis
-          ? {
-              title: { text: axisTitles?.y2Title || "" },
-              overlaying: "y",
-              side: "right",
-              gridcolor: colors.grid,
-              zerolinecolor: colors.zero,
-            }
-          : undefined,
-        paper_bgcolor: colors.paper,
-        plot_bgcolor: colors.plot,
-        font: { color: colors.text, family: "Inter, ui-sans-serif, system-ui, sans-serif" },
-      }}
+      layout={layout}
       style={{ width: "100%", height: "520px" }}
+      onError={(error) => setRenderError(error.message || "Unknown Plotly error")}
     />
   );
 }
