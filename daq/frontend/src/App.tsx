@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { Link, Route, Routes } from "react-router-dom";
 import { DatasetListPage } from "./pages/DatasetListPage";
+import { Button, Panel } from "./components/ui";
 
 const DatasetPage = lazy(() => import("./pages/DatasetPage").then((mod) => ({ default: mod.DatasetPage })));
 
@@ -63,26 +64,30 @@ export default function App() {
     themePreference === "system" ? Monitor : themePreference === "light" ? Sun : Moon;
 
   return (
-    <div className="mx-auto min-h-screen w-11/12 px-4 py-4 text-text md:w-5/6">
-      <header className="mb-4 flex items-center justify-between gap-4 rounded-2xl border border-border bg-panel px-4 py-3 backdrop-blur">
-        <Link to="/" className="text-xl font-semibold tracking-tight">
-          DAQ CSV Grapher
+    <div className="mx-auto min-h-screen w-full max-w-[1500px] px-3 py-3 text-text sm:px-4 lg:px-6">
+      <header className="mb-4 flex h-14 items-center justify-between gap-4 border-b border-border">
+        <Link to="/" className="flex items-center gap-3 font-semibold tracking-tight">
+          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-button text-sm font-bold text-button-text">
+            D
+          </span>
+          <span>DAQ CSV Grapher</span>
         </Link>
-        <button
+        <Button
           type="button"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-input-border bg-input text-text transition hover:bg-button hover:text-button-text"
+          variant="ghost"
+          size="icon"
           onClick={cycleTheme}
           aria-label={themeButtonLabel}
           title={themeButtonLabel}
         >
           <ThemeIcon size={16} strokeWidth={2} aria-hidden="true" />
-        </button>
+        </Button>
       </header>
       <Suspense
         fallback={
-          <main className="rounded-2xl border border-border bg-panel p-4 text-sm text-muted backdrop-blur">
+          <Panel className="p-4 text-sm text-muted">
             Loading page...
-          </main>
+          </Panel>
         }
       >
         <Routes>

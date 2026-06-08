@@ -6,6 +6,9 @@ export default {
       colors: {
         text: "var(--text)",
         muted: "var(--muted)",
+        subtle: "var(--subtle)",
+        surface: "var(--surface)",
+        "surface-soft": "var(--surface-soft)",
         panel: "var(--panel-bg)",
         border: "var(--panel-border)",
         input: "var(--input-bg)",

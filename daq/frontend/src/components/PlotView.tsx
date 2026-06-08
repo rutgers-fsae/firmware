@@ -36,9 +36,12 @@ export function PlotView({ data, theme, axisTitles }: Props) {
     };
   }, []);
 
-  if (!data.length) return <p>No chart data yet.</p>;
-  if (!PlotComponent) return <p>Loading chart engine...</p>;
+  if (!data.length) return <p className="p-6 text-sm text-muted">No chart data yet.</p>;
+  if (!PlotComponent) return <p className="p-6 text-sm text-muted">Loading chart engine...</p>;
   const dark = theme === "dark";
+  const colors = dark
+    ? { paper: "#121821", plot: "#121821", text: "#e7edf5", grid: "#2b3544", zero: "#465466" }
+    : { paper: "#ffffff", plot: "#ffffff", text: "#17212f", grid: "#d9e0e8", zero: "#aeb8c4" };
   const traceLabels = axisTitles?.traceLabels || {};
   const traceAxisByColumn = axisTitles?.traceAxisByColumn || {};
   const labeledData = data.map((trace) => {
@@ -59,20 +62,23 @@ export function PlotView({ data, theme, axisTitles }: Props) {
       layout={{
         autosize: true,
         title: "Dataset Graph",
-        xaxis: { title: { text: axisTitles?.xTitle || "" } },
-        yaxis: { title: { text: axisTitles?.yTitle || "" } },
+        margin: { l: 64, r: hasRightAxis ? 64 : 24, t: 48, b: 56 },
+        xaxis: { title: { text: axisTitles?.xTitle || "" }, gridcolor: colors.grid, zerolinecolor: colors.zero },
+        yaxis: { title: { text: axisTitles?.yTitle || "" }, gridcolor: colors.grid, zerolinecolor: colors.zero },
         yaxis2: hasRightAxis
           ? {
               title: { text: axisTitles?.y2Title || "" },
               overlaying: "y",
               side: "right",
+              gridcolor: colors.grid,
+              zerolinecolor: colors.zero,
             }
           : undefined,
-        paper_bgcolor: dark ? "#0f1722" : "#ffffff",
-        plot_bgcolor: dark ? "#0f1722" : "#ffffff",
-        font: { color: dark ? "#e2ecff" : "#102031" },
+        paper_bgcolor: colors.paper,
+        plot_bgcolor: colors.plot,
+        font: { color: colors.text, family: "Inter, ui-sans-serif, system-ui, sans-serif" },
       }}
-      style={{ width: "100%", height: "540px" }}
+      style={{ width: "100%", height: "520px" }}
     />
   );
 }

@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { Upload } from "lucide-react";
 import { uploadDataset } from "../api/datasets";
+import { Alert, Button, FieldInput, Panel } from "./ui";
 
 type Props = {
   onUploaded: (slug: string) => void;
@@ -28,30 +30,33 @@ export function UploadPanel({ onUploaded }: Props) {
   }
 
   return (
-    <section className="grid gap-3 rounded-2xl border border-border bg-panel p-4 backdrop-blur">
-      <h3 className="text-lg font-semibold">Upload CSV</h3>
-      <input
+    <Panel className="grid content-start gap-3 p-4">
+      <div>
+        <h3 className="text-base font-semibold">Upload CSV</h3>
+        <p className="text-sm text-muted">Add a dataset for plotting.</p>
+      </div>
+      <FieldInput
         type="password"
         placeholder="Upload password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        className="rounded-lg border border-input-border bg-input px-3 py-2 text-sm"
       />
-      <input
+      <FieldInput
         type="file"
         aria-label="CSV file"
         accept=".csv"
         onChange={(e) => setFile(e.target.files?.[0] || null)}
-        className="rounded-lg border border-input-border bg-input px-3 py-2 text-sm"
+        className="h-auto py-1.5 file:mr-3 file:rounded-md file:border-0 file:bg-surface-soft file:px-2.5 file:py-1 file:text-xs file:font-medium file:text-text"
       />
-      <button
+      <Button
         onClick={submit}
         disabled={!file || !password || isUploading}
-        className="rounded-lg bg-button px-3 py-2 text-sm font-medium text-button-text transition hover:bg-button-hover disabled:cursor-not-allowed disabled:bg-button-disabled"
+        variant="primary"
       >
+        <Upload size={15} aria-hidden="true" />
         {isUploading ? "Uploading..." : "Upload"}
-      </button>
-      {status && <p className="text-sm text-muted">{status}</p>}
-    </section>
+      </Button>
+      {status && <Alert tone={status.toLowerCase().startsWith("uploaded") ? "success" : "danger"}>{status}</Alert>}
+    </Panel>
   );
 }

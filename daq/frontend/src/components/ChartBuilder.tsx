@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ChevronDown, Play, X } from "lucide-react";
 import type { SchemaColumn } from "../types/dataset";
 import type { ChartConfig, ChartRequest } from "../types/chart";
+import { Alert, Button, FieldSelect, Panel } from "./ui";
+import { cxClasses } from "./ui-utils";
 
 type Props = {
   columns: SchemaColumn[];
@@ -166,40 +169,44 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
   const xDropdownLabel = xColumn ? columnLabel(xColumn) : "Select X Axis";
 
   return (
-    <section className="grid gap-3 rounded-2xl border border-border bg-panel p-4 backdrop-blur">
-      <h3 className="text-lg font-semibold">Chart Builder</h3>
-      <select
-        value={chartType}
-        onChange={(e) => setChartType(e.target.value as ChartRequest["chart_type"])}
-        className="rounded-lg border border-input-border bg-input px-3 py-2 text-sm"
-      >
-        <option value="line">Line</option>
-        <option value="scatter">Scatter</option>
-        <option value="bar">Bar</option>
-        <option value="histogram">Histogram</option>
-        <option value="box">Box</option>
-      </select>
+    <Panel className="grid gap-3 bg-surface-soft p-3 shadow-none">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">Chart Builder</h3>
+        <FieldSelect
+          value={chartType}
+          onChange={(e) => setChartType(e.target.value as ChartRequest["chart_type"])}
+          className="w-full sm:w-40"
+          aria-label="Chart type"
+        >
+          <option value="line">Line</option>
+          <option value="scatter">Scatter</option>
+          <option value="bar">Bar</option>
+          <option value="histogram">Histogram</option>
+          <option value="box">Box</option>
+        </FieldSelect>
+      </div>
       {numericColumns.length === 0 && (
-        <p className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs text-muted">
+        <Alert tone="warning" className="text-xs">
           This dataset has no numeric columns to plot.
-        </p>
+        </Alert>
       )}
+      <div className="grid gap-2 md:grid-cols-2">
       <div ref={xDropdownRef} className="relative">
         <button
           ref={xButtonRef}
           type="button"
           onClick={toggleXDropdown}
-          className="flex w-full items-center justify-between rounded-lg border border-input-border bg-input px-3 py-2 text-left text-sm text-text"
+          className="flex h-9 w-full items-center justify-between rounded-md border border-input-border bg-input px-3 text-left text-sm text-text transition hover:border-button focus:outline-none focus:ring-2 focus:ring-[var(--focus)]/30"
           aria-expanded={isXDropdownOpen}
         >
-          <span>{xDropdownLabel}</span>
-          <span aria-hidden="true" className="text-muted">▾</span>
+          <span className="truncate">{xDropdownLabel}</span>
+          <ChevronDown size={15} aria-hidden="true" className="shrink-0 text-muted" />
         </button>
         {isXDropdownOpen && xDropdownPosition && createPortal(
           <div
             ref={xPanelRef}
             style={{ top: xDropdownPosition.top, left: xDropdownPosition.left, width: xDropdownPosition.width }}
-            className="fixed z-[9999] grid max-h-64 gap-1 overflow-y-auto rounded-lg border border-border bg-panel p-3 shadow-2xl backdrop-blur"
+            className="fixed z-[9999] grid max-h-64 gap-1 overflow-y-auto rounded-md border border-border bg-panel p-2 shadow-2xl"
           >
             <button
               type="button"
@@ -207,7 +214,7 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
                 setXColumn("");
                 setIsXDropdownOpen(false);
               }}
-              className="rounded-md px-2 py-1 text-left text-sm text-muted transition hover:bg-input hover:text-text"
+              className="rounded-md px-2 py-1.5 text-left text-sm text-muted transition hover:bg-surface-soft hover:text-text"
             >
               Use row index
             </button>
@@ -219,9 +226,10 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
                   setXColumn(col.name);
                   setIsXDropdownOpen(false);
                 }}
-                className={`rounded-md px-2 py-1 text-left text-sm transition hover:bg-input hover:text-text ${
-                  xColumn === col.name ? "bg-input text-text" : "text-text"
-                }`}
+                className={cxClasses(
+                  "rounded-md px-2 py-1.5 text-left text-sm transition hover:bg-surface-soft hover:text-text",
+                  xColumn === col.name ? "bg-surface-soft font-medium text-text" : "text-text",
+                )}
               >
                 {col.display_name || col.name}
               </button>
@@ -235,17 +243,17 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
           ref={yButtonRef}
           type="button"
           onClick={toggleYDropdown}
-          className="flex w-full items-center justify-between rounded-lg border border-input-border bg-input px-3 py-2 text-left text-sm text-text"
+          className="flex h-9 w-full items-center justify-between rounded-md border border-input-border bg-input px-3 text-left text-sm text-text transition hover:border-button focus:outline-none focus:ring-2 focus:ring-[var(--focus)]/30"
           aria-expanded={isYDropdownOpen}
         >
-          <span>{yDropdownLabel}</span>
-          <span aria-hidden="true" className="text-muted">▾</span>
+          <span className="truncate">{yDropdownLabel}</span>
+          <ChevronDown size={15} aria-hidden="true" className="shrink-0 text-muted" />
         </button>
         {isYDropdownOpen && yDropdownPosition && createPortal(
           <div
             ref={yPanelRef}
             style={{ top: yDropdownPosition.top, left: yDropdownPosition.left, width: yDropdownPosition.width }}
-            className="fixed z-[9999] grid max-h-64 gap-1 overflow-y-auto rounded-lg border border-border bg-panel p-3 shadow-2xl backdrop-blur"
+            className="fixed z-[9999] grid max-h-64 gap-1 overflow-y-auto rounded-md border border-border bg-panel p-2 shadow-2xl"
           >
             <div className="mb-1 flex items-center justify-between gap-2">
               <p className="text-sm font-medium text-text">Y Axis Series</p>
@@ -253,14 +261,14 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
                 <button
                   type="button"
                   onClick={() => setYColumns([])}
-                  className="rounded-md px-2 py-1 text-xs text-muted transition hover:bg-input hover:text-text"
+                  className="rounded-md px-2 py-1 text-xs text-muted transition hover:bg-surface-soft hover:text-text"
                 >
                   Clear all
                 </button>
               )}
             </div>
             {numericColumns.map((col) => (
-              <label key={col.name} className="flex items-center gap-2 rounded-md px-2 py-1 text-sm text-text hover:bg-input">
+              <label key={col.name} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-text hover:bg-surface-soft">
                 <input
                   type="checkbox"
                   checked={yColumns.includes(col.name)}
@@ -274,6 +282,7 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
           document.body,
         )}
       </div>
+      </div>
       {yColumns.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {yColumns.map((column) => (
@@ -281,25 +290,26 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
               key={column}
               type="button"
               onClick={() => toggleYColumn(column)}
-              className="rounded-full border border-input-border bg-input px-2 py-1 text-xs text-text transition hover:bg-button hover:text-button-text"
+              className="inline-flex items-center gap-1 rounded-md border border-input-border bg-input px-2 py-1 text-xs text-text transition hover:border-button"
               title="Remove series"
             >
-              {columnLabel(column)} x
+              {columnLabel(column)}
+              <X size={12} aria-hidden="true" />
             </button>
           ))}
         </div>
       )}
       {hasMultipleUnits && !hasTooManyUnits && (
-        <p className="rounded-lg border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs text-muted">
+        <Alert tone="info" className="text-xs">
           Using dual Y-axes for {primaryUnitLabel} and {secondaryUnitLabel}.
-        </p>
+        </Alert>
       )}
       {hasTooManyUnits && (
-        <p className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs text-muted">
+        <Alert tone="warning" className="text-xs">
           More than two Y-axis units selected. Only two axes are supported per graph.
-        </p>
+        </Alert>
       )}
-      <button
+      <Button
         disabled={yColumns.length === 0 || hasTooManyUnits}
         onClick={() =>
           onRun(
@@ -313,10 +323,12 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
             },
           )
         }
-        className="rounded-lg bg-button px-3 py-2 text-sm font-medium text-button-text transition hover:bg-button-hover disabled:cursor-not-allowed disabled:bg-button-disabled"
+        variant="primary"
+        className="justify-self-start"
       >
+        <Play size={15} aria-hidden="true" />
         Render
-      </button>
-    </section>
+      </Button>
+    </Panel>
   );
 }

@@ -18,13 +18,15 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
+import { ArrowLeft, Columns2, GripVertical, Plus, Rows2, Trash2 } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { ChartBuilder } from "../components/ChartBuilder";
 import { PlotView } from "../components/PlotView";
 import { getChartData } from "../api/datasets";
 import { useDatasetSchema } from "../hooks/useDatasetSchema";
 import type { ChartConfig, ChartRequest, PlotTrace } from "../types/chart";
+import { Alert, Button, FieldInput, Panel } from "../components/ui";
+import { cxClasses } from "../components/ui-utils";
 
 type Props = {
   theme: "light" | "dark";
@@ -147,37 +149,42 @@ function SortableGraphCard({
     <article
       ref={setNodeRef}
       style={style}
-      className={`grid gap-3 rounded-2xl border border-border bg-panel p-4 backdrop-blur ${isDragging ? "opacity-85 shadow-2xl" : ""}`}
+      className={cxClasses("grid gap-3 rounded-lg border border-border bg-panel p-3 shadow-sm", isDragging && "opacity-85 shadow-2xl")}
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <button
+      <div className="flex items-center justify-between gap-2 border-b border-border pb-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <Button
             type="button"
-            className="cursor-grab rounded-lg border border-input-border bg-input p-1 text-muted active:cursor-grabbing"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 cursor-grab active:cursor-grabbing"
             aria-label={`Reorder ${displayName}`}
             title={`Reorder ${displayName}`}
             {...attributes}
             {...listeners}
           >
             <GripVertical size={14} />
-          </button>
-          <input
+          </Button>
+          <FieldInput
             type="text"
             value={graph.name}
             onChange={(event) => onRename(graph.id, event.target.value)}
-            className="w-full rounded-lg border border-input-border bg-input px-2 py-1 text-sm font-semibold text-text"
+            className="min-w-0 flex-1 font-semibold"
             aria-label={`Graph ${index + 1} name`}
             maxLength={60}
           />
         </div>
-        <button
+        <Button
           type="button"
           onClick={() => onRemove(graph.id)}
           disabled={totalGraphs === 1}
-          className="rounded-lg border border-input-border bg-input px-2 py-1 text-xs text-text transition hover:bg-button hover:text-button-text disabled:cursor-not-allowed disabled:opacity-50"
+          variant="ghost"
+          size="icon"
+          aria-label={`Remove ${displayName}`}
+          title={`Remove ${displayName}`}
         >
-          Remove
-        </button>
+          <Trash2 size={15} aria-hidden="true" />
+        </Button>
       </div>
       <ChartBuilder
         columns={columns}
@@ -187,11 +194,11 @@ function SortableGraphCard({
       />
       {graph.isLoading && <p className="text-sm text-muted">Rendering graph...</p>}
       {graph.chartError && (
-        <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+        <Alert tone="danger">
           Chart load failed: {graph.chartError}
-        </p>
+        </Alert>
       )}
-      <div className="rounded-2xl border border-border bg-panel p-4">
+      <div className="overflow-hidden rounded-lg border border-border bg-surface">
         <PlotView data={graph.plotData} theme={theme} axisTitles={graph.axisTitles} />
       </div>
     </article>
@@ -344,45 +351,47 @@ export function DatasetPage({ theme }: Props) {
 
   return (
     <main className="grid gap-4">
-      <p>
-        <Link to="/" className="text-sm font-medium text-text hover:underline">
-          Back to datasets
-        </Link>
-      </p>
-      <h2 className="text-xl font-semibold">Dataset: {slug}</h2>
-      <div>
+      <Panel className="flex flex-wrap items-center justify-between gap-3 p-3">
+        <div className="min-w-0">
+          <Link to="/" className="inline-flex items-center gap-1 text-sm font-medium text-muted hover:text-text">
+            <ArrowLeft size={15} aria-hidden="true" />
+            Back to datasets
+          </Link>
+          <h2 className="mt-1 truncate text-lg font-semibold">Dataset: {slug}</h2>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
+          <Button
             type="button"
             onClick={addGraph}
-            className="rounded-lg bg-button px-3 py-2 text-sm font-medium text-button-text transition hover:bg-button-hover"
+            variant="primary"
           >
+            <Plus size={15} aria-hidden="true" />
             Add New Graph
-          </button>
+          </Button>
           <div className="hidden items-center gap-1 rounded-lg border border-input-border bg-input p-1 lg:flex">
-            <button
+            <Button
               type="button"
               onClick={() => setLayout("one")}
-              className={`rounded-md px-2 py-1 text-xs transition ${
-                desktopLayout === "one" ? "bg-button text-button-text" : "text-text hover:bg-button hover:text-button-text"
-              }`}
+              variant={desktopLayout === "one" ? "primary" : "ghost"}
+              size="sm"
             >
+              <Rows2 size={14} aria-hidden="true" />
               1 Column
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => setLayout("two")}
-              className={`rounded-md px-2 py-1 text-xs transition ${
-                desktopLayout === "two" ? "bg-button text-button-text" : "text-text hover:bg-button hover:text-button-text"
-              }`}
+              variant={desktopLayout === "two" ? "primary" : "ghost"}
+              size="sm"
             >
+              <Columns2 size={14} aria-hidden="true" />
               2 Columns
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
+      </Panel>
       {loading && <p className="text-sm text-muted">Loading schema...</p>}
-      {error && <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">Schema load failed: {error}</p>}
+      {error && <Alert tone="danger">Schema load failed: {error}</Alert>}
       {!loading && !error && (
         <DndContext
           sensors={sensors}
@@ -411,7 +420,7 @@ export function DatasetPage({ theme }: Props) {
           </SortableContext>
           <DragOverlay>
             {activeGraph ? (
-              <article className="grid min-w-[300px] gap-2 rounded-2xl border border-border bg-panel p-4 shadow-2xl backdrop-blur">
+              <article className="grid min-w-[300px] gap-2 rounded-lg border border-border bg-panel p-4 shadow-2xl">
                 <h3 className="text-base font-semibold">{activeGraph.name.trim() || `Graph ${graphs.findIndex((g) => g.id === activeGraph.id) + 1}`}</h3>
                 <p className="text-sm text-muted">Dragging graph card...</p>
               </article>

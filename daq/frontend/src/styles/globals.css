@@ -3,34 +3,59 @@
 @tailwind utilities;
 
 :root {
-  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-  --text: #102031;
-  --muted: #35516b;
-  --bg: linear-gradient(180deg, #f3f8ff, #e7f3ef);
-  --panel-bg: #ffffffc9;
-  --panel-border: #cad8ea;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --text: #17212f;
+  --muted: #5d6978;
+  --subtle: #8a95a3;
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-soft: #f8fafc;
+  --panel-bg: #ffffff;
+  --panel-border: #d9e0e8;
   --input-bg: #ffffff;
-  --input-border: #b8cadf;
+  --input-border: #c9d2dc;
   --button-bg: #1f5ea8;
-  --button-text: #f6fbff;
-  --button-bg-hover: #174a87;
-  --button-disabled: #a9bfd8;
+  --button-text: #ffffff;
+  --button-bg-hover: #174b86;
+  --button-disabled: #b6c4d3;
+  --danger: #b42318;
+  --danger-soft: #fff1f0;
+  --warning: #946200;
+  --warning-soft: #fff7db;
+  --info: #1d5f9f;
+  --info-soft: #eef6ff;
+  --success: #147a48;
+  --success-soft: #ecfdf3;
+  --focus: #2d7bd8;
   color: var(--text);
   background: var(--bg);
 }
 
 :root[data-theme="dark"] {
-  --text: #e2ecff;
-  --muted: #a8bdd7;
-  --bg: radial-gradient(circle at top, #1f2d44, #0b111b 55%);
-  --panel-bg: #111a28e6;
-  --panel-border: #2e4260;
-  --input-bg: #0e1826;
-  --input-border: #345170;
-  --button-bg: #2d7bd8;
+  --text: #e7edf5;
+  --muted: #a8b3c1;
+  --subtle: #788696;
+  --bg: #0d1117;
+  --surface: #121821;
+  --surface-soft: #171f2a;
+  --panel-bg: #121821;
+  --panel-border: #2b3544;
+  --input-bg: #0f151d;
+  --input-border: #354253;
+  --button-bg: #3b82d6;
   --button-text: #f4f9ff;
-  --button-bg-hover: #2669b7;
-  --button-disabled: #516683;
+  --button-bg-hover: #2f6fb8;
+  --button-disabled: #465466;
+  --danger: #ffb4ab;
+  --danger-soft: #3a1614;
+  --warning: #f2cc60;
+  --warning-soft: #2d2510;
+  --info: #9dccff;
+  --info-soft: #122235;
+  --success: #86d6a5;
+  --success-soft: #10271b;
+  --focus: #63a7ff;
 }
 
 body {
@@ -38,4 +63,18 @@ body {
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--button-bg) 24%, transparent);
 }
