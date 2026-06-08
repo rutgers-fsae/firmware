@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { Link, Route, Routes } from "react-router-dom";
 import { DatasetListPage } from "./pages/DatasetListPage";
-import { DatasetPage } from "./pages/DatasetPage";
+
+const DatasetPage = lazy(() => import("./pages/DatasetPage").then((mod) => ({ default: mod.DatasetPage })));
 
 type Theme = "light" | "dark";
 type ThemePreference = Theme | "system";
@@ -77,10 +78,18 @@ export default function App() {
           <ThemeIcon size={16} strokeWidth={2} aria-hidden="true" />
         </button>
       </header>
-      <Routes>
-        <Route path="/" element={<DatasetListPage />} />
-        <Route path="/datasets/:slug" element={<DatasetPage theme={theme} />} />
-      </Routes>
+      <Suspense
+        fallback={
+          <main className="rounded-2xl border border-border bg-panel p-4 text-sm text-muted backdrop-blur">
+            Loading page...
+          </main>
+        }
+      >
+        <Routes>
+          <Route path="/" element={<DatasetListPage />} />
+          <Route path="/datasets/:slug" element={<DatasetPage theme={theme} />} />
+        </Routes>
+      </Suspense>
     </div>
   );
 }

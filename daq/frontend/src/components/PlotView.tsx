@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import type { ComponentType, CSSProperties } from "react";
+import type { PlotTrace } from "../types/chart";
 
 type Props = {
-  data: any[];
+  data: PlotTrace[];
   theme: "light" | "dark";
   axisTitles: {
     xTitle: string;
@@ -12,14 +14,21 @@ type Props = {
   } | null;
 };
 
+type PlotComponentProps = {
+  data: PlotTrace[];
+  layout: Record<string, unknown>;
+  style: CSSProperties;
+};
+
 export function PlotView({ data, theme, axisTitles }: Props) {
-  const [PlotComponent, setPlotComponent] = useState<any>(null);
+  const [PlotComponent, setPlotComponent] = useState<ComponentType<PlotComponentProps> | null>(null);
 
   useEffect(() => {
     let mounted = true;
-    import("react-plotly.js").then((mod) => {
+    Promise.all([import("react-plotly.js/factory"), import("plotly.js-cartesian-dist-min")]).then(([factory, plotly]) => {
       if (mounted) {
-        setPlotComponent(() => mod.default);
+        const component = factory.default(plotly.default);
+        setPlotComponent(() => component as ComponentType<PlotComponentProps>);
       }
     });
     return () => {

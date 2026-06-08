@@ -5,12 +5,23 @@ import type { Dataset } from "../types/dataset";
 export function useDatasets() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  function refresh() {
+    setLoading(true);
+    setError(null);
+    return listDatasets()
+      .then(setDatasets)
+      .catch((err: unknown) => {
+        setDatasets([]);
+        setError(err instanceof Error ? err.message : "Failed to load datasets");
+      })
+      .finally(() => setLoading(false));
+  }
 
   useEffect(() => {
-    listDatasets()
-      .then(setDatasets)
-      .finally(() => setLoading(false));
+    refresh();
   }, []);
 
-  return { datasets, loading, refresh: () => listDatasets().then(setDatasets) };
+  return { datasets, loading, error, refresh };
 }

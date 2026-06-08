@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { SchemaColumn } from "../types/dataset";
-import type { ChartRequest } from "../types/chart";
+import type { ChartConfig, ChartRequest } from "../types/chart";
 
 type Props = {
   columns: SchemaColumn[];
+  config?: ChartConfig;
+  onConfigChange?: (config: ChartConfig) => void;
   onRun: (
     payload: ChartRequest,
     axisTitles: {
@@ -23,10 +25,12 @@ type DropdownPosition = {
   width: number;
 };
 
-export function ChartBuilder({ columns, onRun }: Props) {
-  const [chartType, setChartType] = useState<ChartRequest["chart_type"]>("line");
-  const [xColumn, setXColumn] = useState("");
-  const [yColumns, setYColumns] = useState<string[]>([]);
+const defaultConfig: ChartConfig = { chart_type: "line", y_columns: [] };
+
+export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, onRun }: Props) {
+  const [chartType, setChartType] = useState<ChartRequest["chart_type"]>(config.chart_type);
+  const [xColumn, setXColumn] = useState(config.x_column || "");
+  const [yColumns, setYColumns] = useState<string[]>(config.y_columns);
   const [isXDropdownOpen, setIsXDropdownOpen] = useState(false);
   const [isYDropdownOpen, setIsYDropdownOpen] = useState(false);
   const xDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -39,6 +43,16 @@ export function ChartBuilder({ columns, onRun }: Props) {
   const [yDropdownPosition, setYDropdownPosition] = useState<DropdownPosition | null>(null);
 
   const numericColumns = useMemo(() => columns.filter((col) => col.type === "numeric"), [columns]);
+
+  useEffect(() => {
+    onConfigChange?.({ chart_type: chartType, x_column: xColumn || undefined, y_columns: yColumns });
+  }, [chartType, onConfigChange, xColumn, yColumns]);
+
+  useEffect(() => {
+    const available = new Set(columns.map((column) => column.name));
+    setXColumn((current) => (current && !available.has(current) ? "" : current));
+    setYColumns((current) => current.filter((column) => available.has(column)));
+  }, [columns]);
 
   useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent) {
@@ -165,6 +179,11 @@ export function ChartBuilder({ columns, onRun }: Props) {
         <option value="histogram">Histogram</option>
         <option value="box">Box</option>
       </select>
+      {numericColumns.length === 0 && (
+        <p className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-xs text-muted">
+          This dataset has no numeric columns to plot.
+        </p>
+      )}
       <div ref={xDropdownRef} className="relative">
         <button
           ref={xButtonRef}

@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.config import settings
+from app.core.errors import bad_request
 from app.models.chart import ChartRequest, PreviewRequest
 from app.models.dataset import DatasetListItem
 from app.services.chart_builder import build_chart_payload
@@ -36,7 +37,7 @@ def get_dataset_schema(slug: str) -> dict:
 def preview_dataset(slug: str, payload: PreviewRequest) -> dict:
     df = read_dataset(slug)
     filtered = apply_filters(df, [rule.model_dump() for rule in payload.filters])
-    limit = min(payload.limit or settings.max_preview_rows, settings.max_preview_rows)
+    limit = payload.limit or settings.max_preview_rows
     records = filtered.head(limit).to_dict(orient="records")
     return {"rows": records, "row_count": len(filtered)}
 
@@ -44,7 +45,9 @@ def preview_dataset(slug: str, payload: PreviewRequest) -> dict:
 @router.post("/{slug}/chart-data")
 def chart_data(slug: str, payload: ChartRequest) -> dict:
     filters = [rule.model_dump() for rule in payload.filters]
-    df = read_dataset(slug, _columns_for_chart(payload, filters))
+    requested_columns = _columns_for_chart(payload, filters)
+    df = read_dataset(slug, requested_columns)
+    _validate_requested_columns(df.columns, requested_columns)
     filtered = apply_filters(df, filters)
     return build_chart_payload(filtered, payload.chart_type, payload.x_column, payload.y_columns, payload.group_by)
 
@@ -60,3 +63,11 @@ def _columns_for_chart(payload: ChartRequest, filters: list[dict]) -> set[str] |
         if isinstance(column, str):
             columns.add(column)
     return columns or None
+
+
+def _validate_requested_columns(available_columns, requested_columns: set[str] | None) -> None:
+    if not requested_columns:
+        return
+    missing = sorted(requested_columns - set(available_columns))
+    if missing:
+        raise bad_request(f"Unknown dataset columns: {', '.join(missing)}")

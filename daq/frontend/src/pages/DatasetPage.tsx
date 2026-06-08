@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -24,7 +24,7 @@ import { ChartBuilder } from "../components/ChartBuilder";
 import { PlotView } from "../components/PlotView";
 import { getChartData } from "../api/datasets";
 import { useDatasetSchema } from "../hooks/useDatasetSchema";
-import type { ChartRequest } from "../types/chart";
+import type { ChartConfig, ChartRequest, PlotTrace } from "../types/chart";
 
 type Props = {
   theme: "light" | "dark";
@@ -33,7 +33,8 @@ type Props = {
 type GraphState = {
   id: number;
   name: string;
-  plotData: any[];
+  chartConfig: ChartConfig;
+  plotData: PlotTrace[];
   axisTitles: {
     xTitle: string;
     yTitle: string;
@@ -45,10 +46,18 @@ type GraphState = {
   isLoading: boolean;
 };
 
-type PersistedGraphState = Pick<GraphState, "id" | "name" | "axisTitles">;
+type PersistedGraphState = Pick<GraphState, "id" | "name" | "chartConfig" | "axisTitles">;
 
 function emptyGraph(id: number, name = `Graph ${id}`): GraphState {
-  return { id, name, plotData: [], axisTitles: null, chartError: null, isLoading: false };
+  return {
+    id,
+    name,
+    chartConfig: { chart_type: "line", y_columns: [] },
+    plotData: [],
+    axisTitles: null,
+    chartError: null,
+    isLoading: false,
+  };
 }
 
 function restoreGraph(item: Partial<GraphState>, fallbackId: number): GraphState {
@@ -56,6 +65,7 @@ function restoreGraph(item: Partial<GraphState>, fallbackId: number): GraphState
   return {
     ...emptyGraph(id),
     name: typeof item.name === "string" ? item.name : `Graph ${id}`,
+    chartConfig: restoreChartConfig(item.chartConfig),
     axisTitles: item.axisTitles || null,
   };
 }
@@ -64,8 +74,30 @@ function graphForStorage(graph: GraphState): PersistedGraphState {
   return {
     id: graph.id,
     name: graph.name,
+    chartConfig: graph.chartConfig,
     axisTitles: graph.axisTitles,
   };
+}
+
+function restoreChartConfig(config: Partial<ChartConfig> | undefined): ChartConfig {
+  const chartType = config?.chart_type;
+  return {
+    chart_type:
+      chartType === "line" || chartType === "scatter" || chartType === "bar" || chartType === "histogram" || chartType === "box"
+        ? chartType
+        : "line",
+    x_column: typeof config?.x_column === "string" ? config.x_column : undefined,
+    y_columns: Array.isArray(config?.y_columns) ? config.y_columns.filter((item): item is string => typeof item === "string") : [],
+  };
+}
+
+function chartConfigsEqual(left: ChartConfig, right: ChartConfig): boolean {
+  return (
+    left.chart_type === right.chart_type &&
+    left.x_column === right.x_column &&
+    left.y_columns.length === right.y_columns.length &&
+    left.y_columns.every((column, index) => column === right.y_columns[index])
+  );
 }
 
 type SortableGraphCardProps = {
@@ -76,6 +108,7 @@ type SortableGraphCardProps = {
   theme: "light" | "dark";
   onRemove: (id: number) => void;
   onRename: (id: number, name: string) => void;
+  onConfigChange: (id: number, config: ChartConfig) => void;
   onRun: (
     graphId: number,
     payload: ChartRequest,
@@ -89,7 +122,17 @@ type SortableGraphCardProps = {
   ) => void;
 };
 
-function SortableGraphCard({ graph, index, totalGraphs, columns, theme, onRemove, onRename, onRun }: SortableGraphCardProps) {
+function SortableGraphCard({
+  graph,
+  index,
+  totalGraphs,
+  columns,
+  theme,
+  onRemove,
+  onRename,
+  onConfigChange,
+  onRun,
+}: SortableGraphCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: graph.id });
 
   const style = {
@@ -98,6 +141,7 @@ function SortableGraphCard({ graph, index, totalGraphs, columns, theme, onRemove
   };
 
   const displayName = graph.name.trim() || `Graph ${index + 1}`;
+  const handleConfigChange = useCallback((config: ChartConfig) => onConfigChange(graph.id, config), [graph.id, onConfigChange]);
 
   return (
     <article
@@ -135,7 +179,12 @@ function SortableGraphCard({ graph, index, totalGraphs, columns, theme, onRemove
           Remove
         </button>
       </div>
-      <ChartBuilder columns={columns} onRun={(payload, titles) => onRun(graph.id, payload, titles)} />
+      <ChartBuilder
+        columns={columns}
+        config={graph.chartConfig}
+        onConfigChange={handleConfigChange}
+        onRun={(payload, titles) => onRun(graph.id, payload, titles)}
+      />
       {graph.isLoading && <p className="text-sm text-muted">Rendering graph...</p>}
       {graph.chartError && (
         <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
@@ -226,6 +275,17 @@ export function DatasetPage({ theme }: Props) {
     setGraphs((prev) => prev.map((graph) => (graph.id === id ? { ...graph, name } : graph)));
   }
 
+  const updateGraphConfig = useCallback((id: number, chartConfig: ChartConfig) => {
+    setGraphs((prev) =>
+      prev.map((graph) => {
+        if (graph.id !== id || chartConfigsEqual(graph.chartConfig, chartConfig)) {
+          return graph;
+        }
+        return { ...graph, chartConfig };
+      }),
+    );
+  }, []);
+
   useEffect(() => {
     const maxGraphId = graphs.reduce((acc, graph) => Math.max(acc, graph.id), 1);
     setNextGraphId(maxGraphId + 1);
@@ -257,7 +317,7 @@ export function DatasetPage({ theme }: Props) {
           graph.id === graphId
             ? {
                 ...graph,
-                plotData: result.data as any[],
+                plotData: result.data as PlotTrace[],
                 axisTitles: titles,
                 chartError: null,
                 isLoading: false,
@@ -343,6 +403,7 @@ export function DatasetPage({ theme }: Props) {
                   theme={theme}
                   onRemove={removeGraph}
                   onRename={renameGraph}
+                  onConfigChange={updateGraphConfig}
                   onRun={runChart}
                 />
               ))}

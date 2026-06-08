@@ -3,7 +3,7 @@ import { UploadPanel } from "../components/UploadPanel";
 import { useDatasets } from "../hooks/useDatasets";
 
 export function DatasetListPage() {
-  const { datasets, loading, refresh } = useDatasets();
+  const { datasets, loading, error, refresh } = useDatasets();
   const navigate = useNavigate();
 
   return (
@@ -17,6 +17,8 @@ export function DatasetListPage() {
       <section className="grid gap-3 rounded-2xl border border-border bg-panel p-4 backdrop-blur">
         <h2 className="text-lg font-semibold">Datasets</h2>
         {loading && <p className="text-sm text-muted">Loading...</p>}
+        {error && <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">{error}</p>}
+        {!loading && !error && datasets.length === 0 && <p className="text-sm text-muted">No datasets uploaded yet.</p>}
         <ul className="grid gap-2">
           {datasets.map((dataset) => (
             <li key={dataset.slug} className="rounded-lg border border-border/70 bg-input/70 px-3 py-2 text-sm">

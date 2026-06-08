@@ -1,6 +1,8 @@
 from fastapi.testclient import TestClient
 
+from app.config import settings
 from app.main import app
+from app.services.dataset_registry import registry
 from app.services.csv_reader import _read_motec_csv
 
 
@@ -39,3 +41,30 @@ def test_motec_reader_supports_selected_columns(tmp_path):
         {"Time": 0.002, "Motor Speed": 10},
     ]
     assert units == {"Time": "s", "Motor Speed": "rpm"}
+
+
+def test_chart_data_rejects_missing_columns():
+    csv_path = settings.data_dir / "sample.csv"
+    csv_path.write_text("Time,Speed\n0,10\n1,20\n", encoding="utf-8")
+    record = registry.register(csv_path.name, csv_path.stat().st_size)
+
+    response = client.post(
+        f"/api/datasets/{record.slug}/chart-data",
+        json={"chart_type": "line", "x_column": "Time", "y_columns": ["Missing"], "filters": []},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Unknown dataset columns: Missing"
+
+
+def test_preview_rejects_limit_above_configured_max():
+    csv_path = settings.data_dir / "sample.csv"
+    csv_path.write_text("Time,Speed\n0,10\n1,20\n", encoding="utf-8")
+    record = registry.register(csv_path.name, csv_path.stat().st_size)
+
+    response = client.post(
+        f"/api/datasets/{record.slug}/preview",
+        json={"filters": [], "limit": settings.max_preview_rows + 1},
+    )
+
+    assert response.status_code == 422

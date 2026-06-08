@@ -9,15 +9,21 @@ export function UploadPanel({ onUploaded }: Props) {
   const [password, setPassword] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
 
   async function submit() {
-    if (!file) return;
+    if (!file || isUploading) return;
+    setIsUploading(true);
+    setStatus("");
     try {
       const result = await uploadDataset(file, password);
       setStatus(`Uploaded ${result.filename}`);
+      setFile(null);
       onUploaded(result.slug);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Upload failed");
+    } finally {
+      setIsUploading(false);
     }
   }
 
@@ -33,16 +39,17 @@ export function UploadPanel({ onUploaded }: Props) {
       />
       <input
         type="file"
+        aria-label="CSV file"
         accept=".csv"
         onChange={(e) => setFile(e.target.files?.[0] || null)}
         className="rounded-lg border border-input-border bg-input px-3 py-2 text-sm"
       />
       <button
         onClick={submit}
-        disabled={!file || !password}
+        disabled={!file || !password || isUploading}
         className="rounded-lg bg-button px-3 py-2 text-sm font-medium text-button-text transition hover:bg-button-hover disabled:cursor-not-allowed disabled:bg-button-disabled"
       >
-        Upload
+        {isUploading ? "Uploading..." : "Upload"}
       </button>
       {status && <p className="text-sm text-muted">{status}</p>}
     </section>
