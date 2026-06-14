@@ -31,7 +31,7 @@
 // ── Pin assignments ──────────────────────────────────────────────────────────
 #define PUMP_PIN  9           // OC1A — Timer 1 Phase Correct PWM
 #define FAN_PIN   3           // OC2B — Timer 2 Fast PWM
-#define TEMP_PIN  A3          // Coolant Temp 3 (NTC voltage divider)
+#define TEMP_PIN  A2          // Coolant Temp 3 (NTC voltage divider)
 
 // ── PWM frequencies ──────────────────────────────────────────────────────────
 #define PUMP_FREQ 500.0       // Hz  — audible range is fine for pump
@@ -242,7 +242,7 @@ void setup() {
 // ════════════════════════════════════════════════════════════════════════════
 
 void loop() {
-  pumpDuty = 75;
+  pumpDuty = 95;
   setPumpDuty(pumpDuty);
 
   // ── DAQ: record temperature samples to EEPROM ─────────────────────────
@@ -281,7 +281,6 @@ void loop() {
     fanDuty = 60;
   }
 
-  fanDuty = 40;
   setFanDuty(fanDuty);
 
   // ── Serial output every 500 ms ────────────────────────────────────────

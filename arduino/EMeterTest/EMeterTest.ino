@@ -1,32 +1,43 @@
-  #include <OneWire.h>
+#include <OneWire.h>
 #include <DallasTemperature.h>
 
-// Data wire is plugged into digital pin 2 on the Arduino
-#define ONE_WIRE_BUS 2
+#define ONE_WIRE_BUS 2  // DQ connected to pin 2
 
-// Setup a oneWire instance to communicate with any OneWire device
 OneWire oneWire(ONE_WIRE_BUS);
-
-// Pass oneWire reference to DallasTemperature library
 DallasTemperature sensors(&oneWire);
 
-void setup(void) {
+void setup() {
   Serial.begin(9600);
   sensors.begin();
+
+    if (sensors.isParasitePowerMode()) {
+    Serial.println("Parasite power mode: ON");
+  } else {
+    Serial.println("Normal power mode (check wiring)");
+  }
+
+  // Tell the library this sensor uses parasite power
+  // (it will use strong pullup during conversion)
+  Serial.println("DS18B20 Parasite Mode");
 }
 
-void loop(void) {
-  // Send the command to get temperatures
-  sensors.requestTemperatures();
+void loop() {
+  // requestTemperatures() with parasite mode needs a
+  // strong pullup on the line during conversion (750ms)
+  sensors.setWaitForConversion(true);   // blocking wait
+  sensors.requestTemperatures();        // sends conversion command
 
-  //print the temperature in Celsius
-  Serial.print("Temperature: ");
-  Serial.print(sensors.getTempCByIndex(0));
-  Serial.print("°C  |  ");
+  float tempC = sensors.getTempCByIndex(0);
 
-  //print the temperature in Fahrenheit
-  Serial.print((sensors.getTempCByIndex(0) * 9.0) / 5.0 + 32.0);
-  Serial.println("°F");
+  if (tempC == DEVICE_DISCONNECTED_C) {
+    Serial.println("Error: sensor not found");
+  } else {
+    Serial.print("Temp: ");
+    Serial.print(tempC);
+    Serial.print(" °C  /  ");
+    Serial.print(DallasTemperature::toFahrenheit(tempC));
+    Serial.println(" °F");
+  }
 
-  delay(500);
+  delay(1000);
 }
