@@ -35,7 +35,26 @@ def read_dataset_with_units(slug: str, columns: Iterable[str] | None = None) -> 
     return frame.copy(deep=False), dict(units)
 
 
-@lru_cache(maxsize=12)
+def read_dataset_sample_with_units(slug: str, sample_rows: int = 100) -> tuple[pd.DataFrame, dict[str, str | None], int]:
+    path = dataset_path_for_slug(slug)
+    if _is_motec_csv(path):
+        frame, units = _read_motec_csv(path, nrows=sample_rows)
+    else:
+        frame = _read_regular_csv(path, nrows=sample_rows)
+        units = _infer_units_from_column_names(frame.columns.tolist())
+    return frame, units, _row_count_for_path(path)
+
+
+def read_dataset_preview(slug: str, limit: int) -> tuple[pd.DataFrame, int]:
+    path = dataset_path_for_slug(slug)
+    if _is_motec_csv(path):
+        frame, _ = _read_motec_csv(path, nrows=limit)
+    else:
+        frame = _read_regular_csv(path, nrows=limit)
+    return frame, _row_count_for_path(path)
+
+
+@lru_cache(maxsize=3)
 def _read_dataset_cached(
     path_value: str,
     _mtime_ns: int,
@@ -55,12 +74,12 @@ def _read_dataset_cached(
         units = _infer_units_from_column_names(frame.columns.tolist())
 
     if columns is None:
-        _write_parquet_sidecar(path, frame)
+        ensure_parquet_sidecar(path, frame)
     return frame, units
 
 
-def _read_regular_csv(path: Path, columns: set[str] | None = None) -> pd.DataFrame:
-    kwargs = _read_csv_kwargs(columns)
+def _read_regular_csv(path: Path, columns: set[str] | None = None, nrows: int | None = None) -> pd.DataFrame:
+    kwargs = _read_csv_kwargs(columns, nrows)
     try:
         return pd.read_csv(path, **kwargs)
     except ParserError:
@@ -70,13 +89,22 @@ def _read_regular_csv(path: Path, columns: set[str] | None = None) -> pd.DataFra
             raise bad_request(f"Unable to parse CSV: {exc}") from exc
 
 
-def _read_motec_csv(path: Path, columns: set[str] | None = None) -> tuple[pd.DataFrame, dict[str, str | None]]:
+def _read_motec_csv(
+    path: Path,
+    columns: set[str] | None = None,
+    nrows: int | None = None,
+) -> tuple[pd.DataFrame, dict[str, str | None]]:
     header_index, header_row, units_row = _find_motec_header(path)
     units_row_index = header_index + 1
     skiprows = [*range(header_index), units_row_index]
-    kwargs = _read_csv_kwargs(columns)
+    kwargs = _read_csv_kwargs(columns, nrows)
     try:
-        frame = pd.read_csv(path, skiprows=skiprows, engine="python", on_bad_lines="skip", **kwargs)
+        frame = pd.read_csv(path, skiprows=skiprows, **kwargs)
+    except ParserError:
+        try:
+            frame = pd.read_csv(path, skiprows=skiprows, engine="python", on_bad_lines="skip", **kwargs)
+        except Exception as exc:
+            raise bad_request(f"Unable to parse CSV: {exc}") from exc
     except Exception as exc:
         raise bad_request(f"Unable to parse CSV: {exc}") from exc
 
@@ -95,10 +123,13 @@ def _read_motec_csv(path: Path, columns: set[str] | None = None) -> tuple[pd.Dat
     return clean, units
 
 
-def _read_csv_kwargs(columns: set[str] | None) -> dict:
-    if not columns:
-        return {}
-    return {"usecols": lambda column: column in columns}
+def _read_csv_kwargs(columns: set[str] | None, nrows: int | None = None) -> dict:
+    kwargs = {}
+    if columns:
+        kwargs["usecols"] = lambda column: column in columns
+    if nrows is not None:
+        kwargs["nrows"] = nrows
+    return kwargs
 
 
 def _is_motec_csv(path: Path) -> bool:
@@ -139,12 +170,48 @@ def _read_parquet_sidecar(path: Path, columns: set[str] | None = None) -> pd.Dat
         return None
 
 
+def ensure_parquet_sidecar(path: Path, frame: pd.DataFrame | None = None) -> None:
+    sidecar = _parquet_sidecar_path(path)
+    if sidecar.exists() and sidecar.stat().st_mtime_ns >= path.stat().st_mtime_ns:
+        return
+    if frame is None:
+        if _is_motec_csv(path):
+            frame, _ = _read_motec_csv(path)
+        else:
+            frame = _read_regular_csv(path)
+    _write_parquet_sidecar(path, frame)
+
+
 def _write_parquet_sidecar(path: Path, frame: pd.DataFrame) -> None:
     sidecar = _parquet_sidecar_path(path)
     try:
         frame.to_parquet(sidecar, index=False)
     except (ImportError, ValueError, OSError):
         sidecar.unlink(missing_ok=True)
+
+
+def _row_count_for_path(path: Path) -> int:
+    sidecar = _parquet_sidecar_path(path)
+    if sidecar.exists() and sidecar.stat().st_mtime_ns >= path.stat().st_mtime_ns:
+        try:
+            return int(pd.read_parquet(sidecar, columns=[]).shape[0])
+        except (ImportError, ValueError, FileNotFoundError, OSError):
+            pass
+
+    if _is_motec_csv(path):
+        frame, _ = _read_motec_csv(path, {"Time"})
+        return len(frame)
+
+    try:
+        first_column = pd.read_csv(path, nrows=0).columns[:1].tolist()
+        if not first_column:
+            return 0
+        count = 0
+        for chunk in pd.read_csv(path, usecols=first_column, chunksize=100_000):
+            count += len(chunk)
+        return count
+    except Exception as exc:
+        raise bad_request(f"Unable to parse CSV: {exc}") from exc
 
 
 def _units_map_for_columns(columns: list[str], header_row: list[str], raw_units: list[str]) -> dict[str, str | None]:

@@ -27,17 +27,22 @@ void loop() {
   sensors.setWaitForConversion(true);   // blocking wait
   sensors.requestTemperatures();        // sends conversion command
 
-  float tempC = sensors.getTempCByIndex(0);
+  for (int i = 0; i < 5; i++) {
+    float tempC = sensors.getTempCByIndex(i);
 
-  if (tempC == DEVICE_DISCONNECTED_C) {
-    Serial.println("Error: sensor not found");
-  } else {
-    Serial.print("Temp: ");
-    Serial.print(tempC);
-    Serial.print(" °C  /  ");
-    Serial.print(DallasTemperature::toFahrenheit(tempC));
-    Serial.println(" °F");
+    if (tempC == DEVICE_DISCONNECTED_C) {
+      Serial.println("Error: sensor not found");
+    } else {
+      Serial.print("Sensor ");
+      Serial.println(i);
+
+      Serial.print("Temp: ");
+      Serial.print(tempC);
+      Serial.print(" °C  /  ");
+      Serial.print(DallasTemperature::toFahrenheit(tempC));
+      Serial.println(" °F");
+    }
+
+    delay(1000);
   }
-
-  delay(1000);
 }

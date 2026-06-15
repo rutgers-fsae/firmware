@@ -5,7 +5,12 @@ from app.core.errors import bad_request
 from app.models.chart import ChartRequest, PreviewRequest
 from app.models.dataset import DatasetListItem
 from app.services.chart_builder import build_chart_payload
-from app.services.csv_reader import apply_filters, read_dataset, read_dataset_with_units
+from app.services.csv_reader import (
+    apply_filters,
+    read_dataset,
+    read_dataset_preview,
+    read_dataset_sample_with_units,
+)
 from app.services.dataset_registry import registry
 from app.services.schema_inference import infer_schema
 
@@ -29,15 +34,20 @@ def list_datasets() -> list[DatasetListItem]:
 
 @router.get("/{slug}/schema")
 def get_dataset_schema(slug: str) -> dict:
-    df, units = read_dataset_with_units(slug)
-    return {"columns": infer_schema(df, units), "row_count": len(df)}
+    df, units, row_count = read_dataset_sample_with_units(slug)
+    return {"columns": infer_schema(df, units), "row_count": row_count}
 
 
 @router.post("/{slug}/preview")
 def preview_dataset(slug: str, payload: PreviewRequest) -> dict:
-    df = read_dataset(slug)
-    filtered = apply_filters(df, [rule.model_dump() for rule in payload.filters])
     limit = payload.limit or settings.max_preview_rows
+    filters = [rule.model_dump() for rule in payload.filters]
+    if not filters:
+        records, row_count = read_dataset_preview(slug, limit)
+        return {"rows": records.to_dict(orient="records"), "row_count": row_count}
+
+    df = read_dataset(slug)
+    filtered = apply_filters(df, filters)
     records = filtered.head(limit).to_dict(orient="records")
     return {"rows": records, "row_count": len(filtered)}
 

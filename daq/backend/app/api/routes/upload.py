@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, UploadFile
@@ -7,8 +8,10 @@ from app.core.errors import bad_request, payload_too_large
 from app.core.auth import require_upload_password
 from app.core.slug import slugify
 from app.services.dataset_registry import registry
+from app.services.csv_reader import ensure_parquet_sidecar
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("")
@@ -29,6 +32,10 @@ async def upload_csv(_: None = Depends(require_upload_password), file: UploadFil
             output.write(chunk)
 
     record = registry.register(destination.name, size_bytes, original_name=original_name)
+    try:
+        ensure_parquet_sidecar(destination)
+    except Exception as exc:
+        logger.warning("Unable to create parquet sidecar for %s: %s", destination, exc)
     return {"slug": record.slug, "title": record.title, "filename": record.filename}
 
 
