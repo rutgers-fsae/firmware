@@ -242,7 +242,7 @@ void setup() {
 // ════════════════════════════════════════════════════════════════════════════
 
 void loop() {
-  pumpDuty = 95;
+  pumpDuty = 70;
   setPumpDuty(pumpDuty);
 
   // ── DAQ: record temperature samples to EEPROM ─────────────────────────
@@ -280,6 +280,8 @@ void loop() {
   } else {
     fanDuty = 60;
   }
+
+  fanDuty = 60; 
 
   setFanDuty(fanDuty);
 
