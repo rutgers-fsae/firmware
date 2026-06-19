@@ -31,6 +31,36 @@ describe("ChartBuilder", () => {
     );
   });
 
+  it("emits a time filter when time is not the x axis", async () => {
+    const user = userEvent.setup();
+    const onRun = vi.fn();
+    render(<ChartBuilder columns={columns} onRun={onRun} />);
+
+    await user.click(screen.getByRole("button", { name: /select x axis/i }));
+    await user.click(screen.getByRole("button", { name: "Driver" }));
+    await user.click(screen.getByRole("button", { name: /select y series/i }));
+    await user.click(screen.getByRole("checkbox", { name: "Speed (mph)" }));
+    await user.type(screen.getByRole("spinbutton", { name: "Time filter start" }), "10");
+    await user.type(screen.getByRole("spinbutton", { name: "Time filter end" }), "20");
+    await user.click(screen.getByRole("button", { name: "Render" }));
+
+    expect(onRun).toHaveBeenCalledWith(
+      {
+        chart_type: "line",
+        x_column: "Driver",
+        y_columns: ["Speed"],
+        filters: [
+          { column: "Time", op: "gte", value: 10 },
+          { column: "Time", op: "lte", value: 20 },
+        ],
+      },
+      expect.objectContaining({
+        xTitle: "Driver",
+        yTitle: "Speed (mph)",
+      }),
+    );
+  });
+
   it("shows an empty state when there are no numeric columns", () => {
     render(<ChartBuilder columns={[columns[2]]} onRun={vi.fn()} />);
 

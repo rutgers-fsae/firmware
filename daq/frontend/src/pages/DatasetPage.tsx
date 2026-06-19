@@ -54,7 +54,7 @@ function emptyGraph(id: number, name = `Graph ${id}`): GraphState {
   return {
     id,
     name,
-    chartConfig: { chart_type: "line", y_columns: [] },
+    chartConfig: { chart_type: "line", y_columns: [], filters: [] },
     plotData: [],
     axisTitles: null,
     chartError: null,
@@ -90,6 +90,14 @@ function restoreChartConfig(config: Partial<ChartConfig> | undefined): ChartConf
         : "line",
     x_column: typeof config?.x_column === "string" ? config.x_column : undefined,
     y_columns: Array.isArray(config?.y_columns) ? config.y_columns.filter((item): item is string => typeof item === "string") : [],
+    filters: Array.isArray(config?.filters)
+      ? config.filters.filter(
+          (item): item is ChartConfig["filters"][number] =>
+            typeof item?.column === "string" &&
+            (item.op === "eq" || item.op === "contains" || item.op === "gte" || item.op === "lte") &&
+            (typeof item.value === "string" || typeof item.value === "number"),
+        )
+      : [],
   };
 }
 
@@ -98,7 +106,14 @@ function chartConfigsEqual(left: ChartConfig, right: ChartConfig): boolean {
     left.chart_type === right.chart_type &&
     left.x_column === right.x_column &&
     left.y_columns.length === right.y_columns.length &&
-    left.y_columns.every((column, index) => column === right.y_columns[index])
+    left.y_columns.every((column, index) => column === right.y_columns[index]) &&
+    left.filters.length === right.filters.length &&
+    left.filters.every(
+      (filter, index) =>
+        filter.column === right.filters[index]?.column &&
+        filter.op === right.filters[index]?.op &&
+        filter.value === right.filters[index]?.value,
+    )
   );
 }
 

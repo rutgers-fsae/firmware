@@ -281,7 +281,7 @@ void loop() {
     fanDuty = 60;
   }
 
-  fanDuty = 60; 
+  fanDuty = 15; 
 
   setFanDuty(fanDuty);
 

@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Play, X } from "lucide-react";
 import type { SchemaColumn } from "../types/dataset";
-import type { ChartConfig, ChartRequest } from "../types/chart";
-import { Alert, Button, FieldSelect, Panel } from "./ui";
+import type { ChartConfig, ChartRequest, FilterRule } from "../types/chart";
+import { Alert, Button, FieldInput, FieldSelect, Panel } from "./ui";
 import { cxClasses } from "./ui-utils";
 
 type Props = {
@@ -28,12 +28,39 @@ type DropdownPosition = {
   width: number;
 };
 
-const defaultConfig: ChartConfig = { chart_type: "line", y_columns: [] };
+const defaultConfig: ChartConfig = { chart_type: "line", y_columns: [], filters: [] };
+
+function isTimeColumn(column: SchemaColumn) {
+  return (column.type === "numeric" || column.type === "datetime") && /(time|timestamp)/i.test(column.name);
+}
+
+function filterValueForColumn(value: string, column: SchemaColumn | undefined) {
+  if (column?.type !== "numeric") {
+    return value;
+  }
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : value;
+}
+
+function timeFilterState(filters: FilterRule[] | undefined) {
+  const lowerBound = filters?.find((rule) => rule.op === "gte");
+  const upperBound = filters?.find((rule) => rule.op === "lte");
+  const timeColumn = lowerBound?.column || upperBound?.column || "";
+  return {
+    timeColumn,
+    startTime: lowerBound?.value === undefined ? "" : String(lowerBound.value),
+    endTime: upperBound?.value === undefined ? "" : String(upperBound.value),
+  };
+}
 
 export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, onRun }: Props) {
   const [chartType, setChartType] = useState<ChartRequest["chart_type"]>(config.chart_type);
   const [xColumn, setXColumn] = useState(config.x_column || "");
   const [yColumns, setYColumns] = useState<string[]>(config.y_columns);
+  const initialTimeFilter = timeFilterState(config.filters);
+  const [timeColumn, setTimeColumn] = useState(initialTimeFilter.timeColumn);
+  const [startTime, setStartTime] = useState(initialTimeFilter.startTime);
+  const [endTime, setEndTime] = useState(initialTimeFilter.endTime);
   const [isXDropdownOpen, setIsXDropdownOpen] = useState(false);
   const [isYDropdownOpen, setIsYDropdownOpen] = useState(false);
   const xDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -46,16 +73,44 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
   const [yDropdownPosition, setYDropdownPosition] = useState<DropdownPosition | null>(null);
 
   const numericColumns = useMemo(() => columns.filter((col) => col.type === "numeric"), [columns]);
+  const timeColumns = useMemo(() => columns.filter(isTimeColumn), [columns]);
+  const selectedTimeColumn = columns.find((column) => column.name === timeColumn);
+  const timeInputType = selectedTimeColumn?.type === "datetime" ? "text" : "number";
+  const startTimeTrimmed = startTime.trim();
+  const endTimeTrimmed = endTime.trim();
+  const hasInvalidTimeFilter =
+    selectedTimeColumn?.type === "numeric" &&
+    ((startTimeTrimmed !== "" && !Number.isFinite(Number(startTimeTrimmed))) ||
+      (endTimeTrimmed !== "" && !Number.isFinite(Number(endTimeTrimmed))));
+  const filters = useMemo<FilterRule[]>(() => {
+    if (!timeColumn || hasInvalidTimeFilter) {
+      return [];
+    }
+    const rules: FilterRule[] = [];
+    if (startTimeTrimmed !== "") {
+      rules.push({ column: timeColumn, op: "gte", value: filterValueForColumn(startTimeTrimmed, selectedTimeColumn) });
+    }
+    if (endTimeTrimmed !== "") {
+      rules.push({ column: timeColumn, op: "lte", value: filterValueForColumn(endTimeTrimmed, selectedTimeColumn) });
+    }
+    return rules;
+  }, [endTimeTrimmed, hasInvalidTimeFilter, selectedTimeColumn, startTimeTrimmed, timeColumn]);
 
   useEffect(() => {
-    onConfigChange?.({ chart_type: chartType, x_column: xColumn || undefined, y_columns: yColumns });
-  }, [chartType, onConfigChange, xColumn, yColumns]);
+    onConfigChange?.({ chart_type: chartType, x_column: xColumn || undefined, y_columns: yColumns, filters });
+  }, [chartType, filters, onConfigChange, xColumn, yColumns]);
 
   useEffect(() => {
     const available = new Set(columns.map((column) => column.name));
     setXColumn((current) => (current && !available.has(current) ? "" : current));
     setYColumns((current) => current.filter((column) => available.has(column)));
-  }, [columns]);
+    setTimeColumn((current) => {
+      if (current && available.has(current)) {
+        return current;
+      }
+      return timeColumns[0]?.name || "";
+    });
+  }, [columns, timeColumns]);
 
   useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent) {
@@ -299,6 +354,65 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
           ))}
         </div>
       )}
+      {timeColumns.length > 0 && (
+        <div className="grid gap-2 rounded-md border border-border bg-surface px-3 py-2">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+            <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-muted">
+              Time Filter
+              <FieldSelect
+                value={timeColumn}
+                onChange={(event) => setTimeColumn(event.target.value)}
+                aria-label="Time filter column"
+              >
+                {timeColumns.map((column) => (
+                  <option key={column.name} value={column.name}>
+                    {column.display_name || column.name}
+                  </option>
+                ))}
+              </FieldSelect>
+            </label>
+            <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-muted">
+              Start
+              <FieldInput
+                type={timeInputType}
+                value={startTime}
+                onChange={(event) => setStartTime(event.target.value)}
+                aria-label="Time filter start"
+                placeholder="Min"
+                step="any"
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-muted">
+              End
+              <FieldInput
+                type={timeInputType}
+                value={endTime}
+                onChange={(event) => setEndTime(event.target.value)}
+                aria-label="Time filter end"
+                placeholder="Max"
+                step="any"
+              />
+            </label>
+          </div>
+          {(startTime || endTime) && (
+            <button
+              type="button"
+              onClick={() => {
+                setStartTime("");
+                setEndTime("");
+              }}
+              className="justify-self-start rounded-md px-2 py-1 text-xs text-muted transition hover:bg-surface-soft hover:text-text"
+            >
+              Clear time filter
+            </button>
+          )}
+        </div>
+      )}
+      {hasInvalidTimeFilter && (
+        <Alert tone="warning" className="text-xs">
+          Time filter values must be numeric for {selectedTimeColumn?.display_name || selectedTimeColumn?.name}.
+        </Alert>
+      )}
       {hasMultipleUnits && !hasTooManyUnits && (
         <Alert tone="info" className="text-xs">
           Using dual Y-axes for {primaryUnitLabel} and {secondaryUnitLabel}.
@@ -310,10 +424,10 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
         </Alert>
       )}
       <Button
-        disabled={yColumns.length === 0 || hasTooManyUnits}
+        disabled={yColumns.length === 0 || hasTooManyUnits || hasInvalidTimeFilter}
         onClick={() =>
           onRun(
-            { chart_type: chartType, x_column: xColumn || undefined, y_columns: yColumns, filters: [] },
+            { chart_type: chartType, x_column: xColumn || undefined, y_columns: yColumns, filters },
             {
               xTitle: xColumn ? columnLabel(xColumn) : "Index",
               yTitle: yColumns.length === 1 ? columnLabel(yColumns[0]) : axisTitleForUnit(primaryUnit),
