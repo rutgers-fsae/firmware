@@ -42,13 +42,13 @@ export function PlotView({ data, theme, axisTitles }: Props) {
     setRenderError(null);
   }, [data, axisTitles, theme]);
 
-  if (!data.length) return <p className="p-6 text-sm text-muted">No chart data yet.</p>;
-  if (!PlotComponent) return <p className="p-6 text-sm text-muted">Loading chart engine...</p>;
-  if (renderError) return <p className="p-6 text-sm text-[var(--danger)]">Chart render failed: {renderError}</p>;
+  if (!data.length) return <p className="p-8 text-center text-sm text-muted">No chart data yet.</p>;
+  if (!PlotComponent) return <p className="p-8 text-center text-sm text-muted">Loading chart engine...</p>;
+  if (renderError) return <p className="p-8 text-center text-sm text-[var(--danger)]">Chart render failed: {renderError}</p>;
   const dark = theme === "dark";
   const colors = dark
-    ? { paper: "#121821", plot: "#121821", text: "#e7edf5", grid: "#2b3544", zero: "#465466" }
-    : { paper: "#ffffff", plot: "#ffffff", text: "#17212f", grid: "#d9e0e8", zero: "#aeb8c4" };
+    ? { paper: "#0d0d0f", plot: "#09090b", text: "#f7f7f7", grid: "#2a2a2f", zero: "#4a4a52" }
+    : { paper: "#ffffff", plot: "#f7f7f8", text: "#111111", grid: "#dedfe3", zero: "#aeb1b8" };
   const traceLabels = axisTitles?.traceLabels || {};
   const traceAxisByColumn = axisTitles?.traceAxisByColumn || {};
   const labeledData = data.map((trace) => {
@@ -66,8 +66,8 @@ export function PlotView({ data, theme, axisTitles }: Props) {
   const hasRightAxis = Boolean(axisTitles?.y2Title);
   const layout = {
     autosize: true,
-    title: "Dataset Graph",
-    margin: { l: 64, r: hasRightAxis ? 64 : 24, t: 48, b: 56 },
+    title: { text: "Dataset Graph", font: { size: 15 } },
+    margin: { l: 64, r: hasRightAxis ? 64 : 24, t: 46, b: 56 },
     xaxis: { title: { text: axisTitles?.xTitle || "" }, gridcolor: colors.grid, zerolinecolor: colors.zero },
     yaxis: { title: { text: axisTitles?.yTitle || "" }, gridcolor: colors.grid, zerolinecolor: colors.zero },
     ...(hasRightAxis
@@ -83,6 +83,7 @@ export function PlotView({ data, theme, axisTitles }: Props) {
       : {}),
     paper_bgcolor: colors.paper,
     plot_bgcolor: colors.plot,
+    colorway: ["#fd0127", "#111111", "#6b7280", "#ef4444", "#f97316", "#2563eb", "#16a34a"],
     font: { color: colors.text, family: "Inter, ui-sans-serif, system-ui, sans-serif" },
   };
 

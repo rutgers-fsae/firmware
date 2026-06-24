@@ -5,63 +5,77 @@
 :root {
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --text: #17212f;
-  --muted: #5d6978;
-  --subtle: #8a95a3;
-  --bg: #f4f6f8;
+  --text: #111111;
+  --muted: #5f6268;
+  --subtle: #8b8f96;
+  --bg: #f5f5f5;
   --surface: #ffffff;
-  --surface-soft: #f8fafc;
-  --panel-bg: #ffffff;
-  --panel-border: #d9e0e8;
+  --surface-soft: #f7f7f8;
+  --header-bg: #e7e7ea;
+  --header-border: #cfd2d8;
+  --panel-bg: rgba(255, 255, 255, 0.94);
+  --panel-border: #dedfe3;
   --input-bg: #ffffff;
-  --input-border: #c9d2dc;
-  --button-bg: #1f5ea8;
+  --input-border: #cacdd3;
+  --button-bg: #fd0127;
   --button-text: #ffffff;
-  --button-bg-hover: #174b86;
-  --button-disabled: #b6c4d3;
+  --button-bg-hover: #d90020;
+  --button-disabled: #b9bcc3;
+  --accent: #fd0127;
+  --accent-soft: #fff0f3;
   --danger: #b42318;
   --danger-soft: #fff1f0;
   --warning: #946200;
-  --warning-soft: #fff7db;
-  --info: #1d5f9f;
-  --info-soft: #eef6ff;
+  --warning-soft: #fff6d8;
+  --info: #111111;
+  --info-soft: #f0f0f1;
   --success: #147a48;
   --success-soft: #ecfdf3;
-  --focus: #2d7bd8;
+  --focus: #fd0127;
+  --ring: #fd0127;
+  --radius: 0.5rem;
   color: var(--text);
   background: var(--bg);
 }
 
 :root[data-theme="dark"] {
-  --text: #e7edf5;
-  --muted: #a8b3c1;
-  --subtle: #788696;
-  --bg: #0d1117;
-  --surface: #121821;
-  --surface-soft: #171f2a;
-  --panel-bg: #121821;
-  --panel-border: #2b3544;
-  --input-bg: #0f151d;
-  --input-border: #354253;
-  --button-bg: #3b82d6;
-  --button-text: #f4f9ff;
-  --button-bg-hover: #2f6fb8;
-  --button-disabled: #465466;
+  --text: #f7f7f7;
+  --muted: #b4b6bc;
+  --subtle: #7d828b;
+  --bg: #050505;
+  --surface: #0d0d0f;
+  --surface-soft: #161619;
+  --header-bg: #1a1a1d;
+  --header-border: #2f2f35;
+  --panel-bg: rgba(13, 13, 15, 0.94);
+  --panel-border: #2a2a2f;
+  --input-bg: #09090b;
+  --input-border: #3a3a41;
+  --button-bg: #fd0127;
+  --button-text: #ffffff;
+  --button-bg-hover: #ff3150;
+  --button-disabled: #45454d;
+  --accent: #fd0127;
+  --accent-soft: #36060d;
   --danger: #ffb4ab;
   --danger-soft: #3a1614;
   --warning: #f2cc60;
   --warning-soft: #2d2510;
-  --info: #9dccff;
-  --info-soft: #122235;
+  --info: #ffffff;
+  --info-soft: #19191c;
   --success: #86d6a5;
   --success-soft: #10271b;
-  --focus: #63a7ff;
+  --focus: #fd0127;
+  --ring: #fd0127;
 }
 
 body {
   @apply m-0;
   min-height: 100vh;
-  background: var(--bg);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 30%),
+    radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 28%),
+    var(--bg);
   color: var(--text);
 }
 
@@ -73,6 +87,15 @@ button,
 input,
 select {
   font: inherit;
+}
+
+button,
+select {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
 }
 
 ::selection {

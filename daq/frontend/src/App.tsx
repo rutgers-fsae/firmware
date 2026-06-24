@@ -2,7 +2,9 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
 import { Link, Route, Routes } from "react-router-dom";
 import { DatasetListPage } from "./pages/DatasetListPage";
-import { Button, Panel } from "./components/ui";
+import { Badge, Button, Panel, Tooltip } from "./components/ui";
+import rfrDarkLogo from "./assets/rfr-dark-logo.png";
+import rfrLightLogo from "./assets/rfr-light-logo.png";
 
 const DatasetPage = lazy(() => import("./pages/DatasetPage").then((mod) => ({ default: mod.DatasetPage })));
 
@@ -62,26 +64,36 @@ export default function App() {
 
   const ThemeIcon =
     themePreference === "system" ? Monitor : themePreference === "light" ? Sun : Moon;
+  const logoSrc = theme === "dark" ? rfrDarkLogo : rfrLightLogo;
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[1500px] px-3 py-3 text-text sm:px-4 lg:px-6">
-      <header className="mb-4 flex h-14 items-center justify-between gap-4 border-b border-border">
-        <Link to="/" className="flex items-center gap-3 font-semibold tracking-tight">
-          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-button text-sm font-bold text-button-text">
-            D
+    <div className="mx-auto min-h-screen w-full max-w-[1540px] px-3 py-3 text-text sm:px-4 lg:px-6">
+      <header className="mb-4 flex min-h-16 items-center justify-between gap-4 rounded-lg border border-[var(--header-border)] bg-[var(--header-bg)] px-3 py-2 shadow-sm shadow-black/5 backdrop-blur sm:px-4">
+        <Link to="/" className="flex min-w-0 items-center gap-3 font-semibold tracking-tight">
+          <img
+            src={logoSrc}
+            alt="Rutgers Formula Racing"
+            className="h-10 w-auto max-w-[190px] object-contain sm:h-12 sm:max-w-[260px]"
+          />
+          <span className="hidden min-w-0 border-l border-[var(--header-border)] pl-3 sm:block">
+            <span className="block truncate text-xs font-bold uppercase tracking-[0.18em] text-subtle">Data Acquisition</span>
+            <span className="block truncate text-base font-semibold">CSV Grapher</span>
           </span>
-          <span>DAQ CSV Grapher</span>
         </Link>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={cycleTheme}
-          aria-label={themeButtonLabel}
-          title={themeButtonLabel}
-        >
-          <ThemeIcon size={16} strokeWidth={2} aria-hidden="true" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Badge tone="info" className="hidden sm:inline-flex">Telemetry</Badge>
+          <Tooltip label={themeButtonLabel}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={cycleTheme}
+              aria-label={themeButtonLabel}
+            >
+              <ThemeIcon size={16} strokeWidth={2} aria-hidden="true" />
+            </Button>
+          </Tooltip>
+        </div>
       </header>
       <Suspense
         fallback={

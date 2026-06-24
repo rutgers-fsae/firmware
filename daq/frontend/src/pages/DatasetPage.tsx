@@ -25,7 +25,7 @@ import { PlotView } from "../components/PlotView";
 import { getChartData } from "../api/datasets";
 import { useDatasetSchema } from "../hooks/useDatasetSchema";
 import type { ChartConfig, ChartRequest, PlotTrace } from "../types/chart";
-import { Alert, Button, FieldInput, Panel } from "../components/ui";
+import { Alert, Badge, Button, FieldInput, Panel, Tooltip } from "../components/ui";
 import { cxClasses } from "../components/ui-utils";
 
 type Props = {
@@ -164,42 +164,45 @@ function SortableGraphCard({
     <article
       ref={setNodeRef}
       style={style}
-      className={cxClasses("grid gap-3 rounded-lg border border-border bg-panel p-3 shadow-sm", isDragging && "opacity-85 shadow-2xl")}
+      className={cxClasses("grid gap-3 rounded-lg border border-border bg-panel p-3 shadow-sm shadow-black/5 transition", isDragging && "opacity-85 shadow-2xl")}
     >
       <div className="flex items-center justify-between gap-2 border-b border-border pb-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 cursor-grab active:cursor-grabbing"
-            aria-label={`Reorder ${displayName}`}
-            title={`Reorder ${displayName}`}
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical size={14} />
-          </Button>
+          <Tooltip label={`Reorder ${displayName}`}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 cursor-grab active:cursor-grabbing"
+              aria-label={`Reorder ${displayName}`}
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical size={14} />
+            </Button>
+          </Tooltip>
           <FieldInput
             type="text"
             value={graph.name}
             onChange={(event) => onRename(graph.id, event.target.value)}
-            className="min-w-0 flex-1 font-semibold"
+            className="min-w-0 flex-1 border-transparent bg-transparent px-1 font-semibold shadow-none hover:bg-input focus:border-input-border"
             aria-label={`Graph ${index + 1} name`}
             maxLength={60}
           />
+          <Badge tone="default" className="hidden shrink-0 sm:inline-flex">{graph.plotData.length} traces</Badge>
         </div>
-        <Button
-          type="button"
-          onClick={() => onRemove(graph.id)}
-          disabled={totalGraphs === 1}
-          variant="ghost"
-          size="icon"
-          aria-label={`Remove ${displayName}`}
-          title={`Remove ${displayName}`}
-        >
-          <Trash2 size={15} aria-hidden="true" />
-        </Button>
+        <Tooltip label={`Remove ${displayName}`}>
+          <Button
+            type="button"
+            onClick={() => onRemove(graph.id)}
+            disabled={totalGraphs === 1}
+            variant="ghost"
+            size="icon"
+            aria-label={`Remove ${displayName}`}
+          >
+            <Trash2 size={15} aria-hidden="true" />
+          </Button>
+        </Tooltip>
       </div>
       <ChartBuilder
         columns={columns}
@@ -213,7 +216,7 @@ function SortableGraphCard({
           Chart load failed: {graph.chartError}
         </Alert>
       )}
-      <div className="overflow-hidden rounded-lg border border-border bg-surface">
+      <div className="overflow-hidden rounded-lg border border-border bg-surface shadow-inner">
         <PlotView data={graph.plotData} theme={theme} axisTitles={graph.axisTitles} />
       </div>
     </article>
@@ -372,7 +375,10 @@ export function DatasetPage({ theme }: Props) {
             <ArrowLeft size={15} aria-hidden="true" />
             Back to datasets
           </Link>
-          <h2 className="mt-1 truncate text-lg font-semibold">Dataset: {slug}</h2>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <h2 className="truncate text-lg font-semibold">Dataset: {slug}</h2>
+            {!loading && !error && <Badge tone="info">{columns.length} channels</Badge>}
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button
@@ -383,7 +389,7 @@ export function DatasetPage({ theme }: Props) {
             <Plus size={15} aria-hidden="true" />
             Add New Graph
           </Button>
-          <div className="hidden items-center gap-1 rounded-lg border border-input-border bg-input p-1 lg:flex">
+          <div className="hidden items-center gap-1 rounded-lg border border-input-border bg-input p-1 shadow-sm lg:flex">
             <Button
               type="button"
               onClick={() => setLayout("one")}

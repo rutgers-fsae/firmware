@@ -6,6 +6,10 @@
     "jsx": "react-jsx",
     "strict": true,
     "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

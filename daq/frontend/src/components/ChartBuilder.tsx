@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { ChevronDown, Play, X } from "lucide-react";
 import type { SchemaColumn } from "../types/dataset";
 import type { ChartConfig, ChartRequest, FilterRule } from "../types/chart";
-import { Alert, Button, FieldInput, FieldSelect, Panel } from "./ui";
+import { Alert, Badge, Button, FieldInput, FieldSelect, Label, Panel } from "./ui";
 import { cxClasses } from "./ui-utils";
 
 type Props = {
@@ -226,7 +226,10 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
   return (
     <Panel className="grid gap-3 bg-surface-soft p-3 shadow-none">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted">Chart Builder</h3>
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted">Chart Builder</h3>
+          <p className="text-xs text-subtle">{numericColumns.length} numeric channels</p>
+        </div>
         <FieldSelect
           value={chartType}
           onChange={(e) => setChartType(e.target.value as ChartRequest["chart_type"])}
@@ -246,97 +249,105 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
         </Alert>
       )}
       <div className="grid gap-2 md:grid-cols-2">
-      <div ref={xDropdownRef} className="relative">
-        <button
-          ref={xButtonRef}
-          type="button"
-          onClick={toggleXDropdown}
-          className="flex h-9 w-full items-center justify-between rounded-md border border-input-border bg-input px-3 text-left text-sm text-text transition hover:border-button focus:outline-none focus:ring-2 focus:ring-[var(--focus)]/30"
-          aria-expanded={isXDropdownOpen}
-        >
-          <span className="truncate">{xDropdownLabel}</span>
-          <ChevronDown size={15} aria-hidden="true" className="shrink-0 text-muted" />
-        </button>
-        {isXDropdownOpen && xDropdownPosition && createPortal(
-          <div
-            ref={xPanelRef}
-            style={{ top: xDropdownPosition.top, left: xDropdownPosition.left, width: xDropdownPosition.width }}
-            className="fixed z-[9999] grid max-h-64 gap-1 overflow-y-auto rounded-md border border-border bg-panel p-2 shadow-2xl"
-          >
+        <Label className="grid gap-1.5">
+          X Axis
+          <div ref={xDropdownRef} className="relative">
             <button
+              ref={xButtonRef}
               type="button"
-              onClick={() => {
-                setXColumn("");
-                setIsXDropdownOpen(false);
-              }}
-              className="rounded-md px-2 py-1.5 text-left text-sm text-muted transition hover:bg-surface-soft hover:text-text"
+              onClick={toggleXDropdown}
+              className="flex h-9 w-full items-center justify-between rounded-md border border-input-border bg-input px-3 text-left text-sm font-normal text-text shadow-sm transition hover:border-button focus:outline-none focus:ring-2 focus:ring-ring/30"
+              aria-label={xDropdownLabel}
+              aria-expanded={isXDropdownOpen}
             >
-              Use row index
+              <span className="truncate normal-case tracking-normal">{xDropdownLabel}</span>
+              <ChevronDown size={15} aria-hidden="true" className="shrink-0 text-muted" />
             </button>
-            {columns.map((col) => (
-              <button
-                key={col.name}
-                type="button"
-                onClick={() => {
-                  setXColumn(col.name);
-                  setIsXDropdownOpen(false);
-                }}
-                className={cxClasses(
-                  "rounded-md px-2 py-1.5 text-left text-sm transition hover:bg-surface-soft hover:text-text",
-                  xColumn === col.name ? "bg-surface-soft font-medium text-text" : "text-text",
-                )}
+            {isXDropdownOpen && xDropdownPosition && createPortal(
+              <div
+                ref={xPanelRef}
+                style={{ top: xDropdownPosition.top, left: xDropdownPosition.left, width: xDropdownPosition.width }}
+                className="fixed z-[9999] grid max-h-64 gap-1 overflow-y-auto rounded-md border border-border bg-panel p-2 shadow-2xl"
               >
-                {col.display_name || col.name}
-              </button>
-            ))}
-          </div>,
-          document.body,
-        )}
-      </div>
-      <div ref={yDropdownRef} className="relative">
-        <button
-          ref={yButtonRef}
-          type="button"
-          onClick={toggleYDropdown}
-          className="flex h-9 w-full items-center justify-between rounded-md border border-input-border bg-input px-3 text-left text-sm text-text transition hover:border-button focus:outline-none focus:ring-2 focus:ring-[var(--focus)]/30"
-          aria-expanded={isYDropdownOpen}
-        >
-          <span className="truncate">{yDropdownLabel}</span>
-          <ChevronDown size={15} aria-hidden="true" className="shrink-0 text-muted" />
-        </button>
-        {isYDropdownOpen && yDropdownPosition && createPortal(
-          <div
-            ref={yPanelRef}
-            style={{ top: yDropdownPosition.top, left: yDropdownPosition.left, width: yDropdownPosition.width }}
-            className="fixed z-[9999] grid max-h-64 gap-1 overflow-y-auto rounded-md border border-border bg-panel p-2 shadow-2xl"
-          >
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <p className="text-sm font-medium text-text">Y Axis Series</p>
-              {yColumns.length > 0 && (
                 <button
                   type="button"
-                  onClick={() => setYColumns([])}
-                  className="rounded-md px-2 py-1 text-xs text-muted transition hover:bg-surface-soft hover:text-text"
+                  onClick={() => {
+                    setXColumn("");
+                    setIsXDropdownOpen(false);
+                  }}
+                  className="rounded-md px-2 py-1.5 text-left text-sm text-muted transition hover:bg-surface-soft hover:text-text"
                 >
-                  Clear all
+                  Use row index
                 </button>
-              )}
-            </div>
-            {numericColumns.map((col) => (
-              <label key={col.name} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-text hover:bg-surface-soft">
-                <input
-                  type="checkbox"
-                  checked={yColumns.includes(col.name)}
-                  onChange={() => toggleYColumn(col.name)}
-                  className="h-4 w-4 accent-button"
-                />
-                <span>{col.display_name || col.name}</span>
-              </label>
-            ))}
-          </div>,
-          document.body,
-        )}
-      </div>
+                {columns.map((col) => (
+                  <button
+                    key={col.name}
+                    type="button"
+                    onClick={() => {
+                      setXColumn(col.name);
+                      setIsXDropdownOpen(false);
+                    }}
+                    className={cxClasses(
+                      "rounded-md px-2 py-1.5 text-left text-sm transition hover:bg-surface-soft hover:text-text",
+                      xColumn === col.name ? "bg-surface-soft font-medium text-text" : "text-text",
+                    )}
+                  >
+                    {col.display_name || col.name}
+                  </button>
+                ))}
+              </div>,
+              document.body,
+            )}
+          </div>
+        </Label>
+        <Label className="grid gap-1.5">
+          Y Series
+          <div ref={yDropdownRef} className="relative">
+            <button
+              ref={yButtonRef}
+              type="button"
+              onClick={toggleYDropdown}
+              className="flex h-9 w-full items-center justify-between rounded-md border border-input-border bg-input px-3 text-left text-sm font-normal text-text shadow-sm transition hover:border-button focus:outline-none focus:ring-2 focus:ring-ring/30"
+              aria-label={yDropdownLabel}
+              aria-expanded={isYDropdownOpen}
+            >
+              <span className="truncate normal-case tracking-normal">{yDropdownLabel}</span>
+              <ChevronDown size={15} aria-hidden="true" className="shrink-0 text-muted" />
+            </button>
+            {isYDropdownOpen && yDropdownPosition && createPortal(
+              <div
+                ref={yPanelRef}
+                style={{ top: yDropdownPosition.top, left: yDropdownPosition.left, width: yDropdownPosition.width }}
+                className="fixed z-[9999] grid max-h-64 gap-1 overflow-y-auto rounded-md border border-border bg-panel p-2 shadow-2xl"
+              >
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-text">Y Axis Series</p>
+                  {yColumns.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setYColumns([])}
+                      className="rounded-md px-2 py-1 text-xs text-muted transition hover:bg-surface-soft hover:text-text"
+                    >
+                      Clear all
+                    </button>
+                  )}
+                </div>
+                {numericColumns.map((col) => (
+                  <label key={col.name} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-text hover:bg-surface-soft">
+                    <input
+                      type="checkbox"
+                      checked={yColumns.includes(col.name)}
+                      onChange={() => toggleYColumn(col.name)}
+                      className="h-4 w-4 accent-button"
+                    />
+                    <span>{col.display_name || col.name}</span>
+                  </label>
+                ))}
+              </div>,
+              document.body,
+            )}
+          </div>
+        </Label>
       </div>
       {yColumns.length > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -345,7 +356,7 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
               key={column}
               type="button"
               onClick={() => toggleYColumn(column)}
-              className="inline-flex items-center gap-1 rounded-md border border-input-border bg-input px-2 py-1 text-xs text-text transition hover:border-button"
+              className="inline-flex items-center gap-1 rounded-md border border-input-border bg-input px-2 py-1 text-xs font-medium text-text shadow-sm transition hover:border-button hover:bg-surface"
               title="Remove series"
             >
               {columnLabel(column)}
@@ -355,9 +366,13 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
         </div>
       )}
       {timeColumns.length > 0 && (
-        <div className="grid gap-2 rounded-md border border-border bg-surface px-3 py-2">
-          <div className="grid gap-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]">
-            <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-muted">
+        <div className="grid gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 shadow-sm">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">Time Window</p>
+            <Badge tone="default">{timeColumns.length} time fields</Badge>
+          </div>
+          <div className="grid gap-1.5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+            <Label className="grid min-w-0 gap-1">
               Time Filter
               <FieldSelect
                 value={timeColumn}
@@ -370,8 +385,8 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
                   </option>
                 ))}
               </FieldSelect>
-            </label>
-            <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-muted">
+            </Label>
+            <Label className="grid min-w-0 gap-1">
               Start
               <FieldInput
                 type={timeInputType}
@@ -380,9 +395,10 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
                 aria-label="Time filter start"
                 placeholder="Min"
                 step="any"
+                className="w-full min-w-0"
               />
-            </label>
-            <label className="grid gap-1 text-xs font-medium uppercase tracking-wide text-muted">
+            </Label>
+            <Label className="grid min-w-0 gap-1">
               End
               <FieldInput
                 type={timeInputType}
@@ -391,8 +407,9 @@ export function ChartBuilder({ columns, config = defaultConfig, onConfigChange, 
                 aria-label="Time filter end"
                 placeholder="Max"
                 step="any"
+                className="w-full min-w-0"
               />
-            </label>
+            </Label>
           </div>
           {(startTime || endTime) && (
             <button
