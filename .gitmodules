@@ -1,0 +1,6 @@
+[submodule "temp-board-rewrite"]
+	path = temp-board-rewrite
+	url = https://github.com/jeevanshah07/temp-board-rewrite
+[submodule "rfr-daq"]
+	path = rfr-daq
+	url = https://github.com/jeevanshah07/rfr-daq
