@@ -1,6 +1,6 @@
 [submodule "temp-board-rewrite"]
 	path = temp-board-rewrite
 	url = https://github.com/rutgers-fsae/temp-board-rewrite
-[submodule "rfr-daq"]
-	path = rfr-daq
+[submodule "daq-website"]
+	path = daq-website
 	url = https://github.com/rutgers-fsae/daq-website
