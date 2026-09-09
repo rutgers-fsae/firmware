@@ -326,6 +326,7 @@ static void CAN_Init(void) {
 
 static void SystemClock_Config(void) {
     RCC_OscInitTypeDef osc = {0}; RCC_ClkInitTypeDef clock = {0};
+#if BL_CLOCK_SOURCE == BL_CLOCK_SOURCE_HSE
     osc.OscillatorType = RCC_OSCILLATORTYPE_HSE; osc.HSEState = RCC_HSE_ON;
     osc.HSEPredivValue = RCC_HSE_PREDIV_DIV1; osc.PLL.PLLState = RCC_PLL_ON;
     osc.PLL.PLLSource = RCC_PLLSOURCE_HSE; osc.PLL.PLLMUL = RCC_PLL_MUL6;
@@ -334,6 +335,16 @@ static void SystemClock_Config(void) {
     clock.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK; clock.AHBCLKDivider = RCC_SYSCLK_DIV1;
     clock.APB1CLKDivider = RCC_HCLK_DIV2; clock.APB2CLKDivider = RCC_HCLK_DIV1;
     if (HAL_RCC_ClockConfig(&clock, FLASH_LATENCY_2) != HAL_OK) while (1) { }
+#else
+    osc.OscillatorType = RCC_OSCILLATORTYPE_HSI; osc.HSIState = RCC_HSI_ON;
+    osc.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT; osc.PLL.PLLState = RCC_PLL_ON;
+    osc.PLL.PLLSource = RCC_PLLSOURCE_HSI_DIV2; osc.PLL.PLLMUL = RCC_PLL_MUL9;
+    if (HAL_RCC_OscConfig(&osc) != HAL_OK) while (1) { }
+    clock.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+    clock.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK; clock.AHBCLKDivider = RCC_SYSCLK_DIV1;
+    clock.APB1CLKDivider = RCC_HCLK_DIV1; clock.APB2CLKDivider = RCC_HCLK_DIV1;
+    if (HAL_RCC_ClockConfig(&clock, FLASH_LATENCY_1) != HAL_OK) while (1) { }
+#endif
 }
 
 void HAL_MspInit(void) { __HAL_RCC_AFIO_CLK_ENABLE(); __HAL_RCC_PWR_CLK_ENABLE(); __HAL_AFIO_REMAP_SWJ_NOJTAG(); }

@@ -21,15 +21,17 @@ All frames use 11-bit Classical CAN IDs. `BL_NODE_ID` is compiled separately for
 
 Commands provide info, begin/erase, set expected CRC-32, finish/verify, abort, start application, and reset. Data acknowledgements are idempotent: if an ACK is lost, the host can safely resend the last frame without programming it twice. An incomplete image is never marked bootable. After power loss the protected bootloader remains available for retransmission; this MCU does not have enough guaranteed flash for two copies of all current applications.
 
-## Confirmed hardware configuration
+## Clock configuration
 
-The target boards use a 12 MHz external crystal and PA11/PA12 for CAN. The PLL multiplies 12 MHz by 6 for a 72 MHz system clock; APB1 runs at 36 MHz. CAN uses 18 time quanta with a prescaler of 4, producing the confirmed 500 kbit/s bitrate.
+The default `HSE` build uses the boards' 12 MHz external crystal. It runs the system clock at 72 MHz and APB1 at 36 MHz. The optional `HSI` build uses the STM32F103's internal 8 MHz oscillator and runs both the system and APB1 clocks at 36 MHz. In either build, CAN uses 18 time quanta with a prescaler of 4, producing 500 kbit/s on PA11/PA12.
+
+This choice applies only while the bootloader is running. After the bootloader starts an application, that application configures its own clock as before. The HSI is less accurate and stable than the external crystal, so the HSI build requires CAN bench testing across expected voltage and temperature conditions before vehicle use.
 
 ## Build
 
-From this directory, run `make`. The Makefile uses the STM32F1 HAL already committed under `rfr26-tempSensor` and expects `arm-none-eabi-gcc` on `PATH`. The compiler can also be selected explicitly, for example `make CC=/path/arm-none-eabi-gcc OBJCOPY=/path/arm-none-eabi-objcopy SIZE=/path/arm-none-eabi-size`.
+From this directory, run `make` for the default external-crystal build. Run `make CLOCK=HSI` for the internal-oscillator build. Each choice uses a separate output directory, so switching does not reuse files compiled for the other clock. The Makefile uses the STM32F1 HAL already committed under `rfr26-tempSensor` and expects `arm-none-eabi-gcc` on `PATH`. The compiler can also be selected explicitly, for example `make CC=/path/arm-none-eabi-gcc OBJCOPY=/path/arm-none-eabi-objcopy SIZE=/path/arm-none-eabi-size`.
 
-The bootloader binary is written to `build/stm32f103-can-bootloader.bin`. Initially install it with ST-LINK at `0x08000000`.
+The bootloader binaries are written to `build/HSE/stm32f103-can-bootloader.bin` and `build/HSI/stm32f103-can-bootloader.bin`. Initially install the selected binary with ST-LINK at `0x08000000`.
 
 With GCC 16.2.0 the current build occupies 6,308 bytes of flash and 1,120 bytes of RAM, fitting comfortably inside the reserved 16 KiB bootloader region.
 

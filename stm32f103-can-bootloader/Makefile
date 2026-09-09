@@ -1,12 +1,21 @@
 PROJECT := stm32f103-can-bootloader
-BUILD := build
 CUBE := ../rfr26-tempSensor
 CC := arm-none-eabi-gcc
 OBJCOPY := arm-none-eabi-objcopy
 SIZE := arm-none-eabi-size
+CLOCK ?= HSE
+BUILD := build/$(CLOCK)
+
+ifeq ($(CLOCK),HSE)
+CLOCK_CFLAGS := -DBL_CLOCK_SOURCE=BL_CLOCK_SOURCE_HSE -DHSE_VALUE=12000000U
+else ifeq ($(CLOCK),HSI)
+CLOCK_CFLAGS := -DBL_CLOCK_SOURCE=BL_CLOCK_SOURCE_HSI
+else
+$(error CLOCK must be HSE or HSI)
+endif
 
 CFLAGS := -mcpu=cortex-m3 -mthumb -std=gnu11 -Os -ffunction-sections -fdata-sections -Wall -Wextra -Werror \
-  -DSTM32F103xB -DUSE_HAL_DRIVER -DHSE_VALUE=12000000U -Iinclude -I$(CUBE)/Core/Inc \
+  -DSTM32F103xB -DUSE_HAL_DRIVER $(CLOCK_CFLAGS) -Iinclude -I$(CUBE)/Core/Inc \
   -I$(CUBE)/Drivers/STM32F1xx_HAL_Driver/Inc -I$(CUBE)/Drivers/STM32F1xx_HAL_Driver/Inc/Legacy \
   -I$(CUBE)/Drivers/CMSIS/Device/ST/STM32F1xx/Include -I$(CUBE)/Drivers/CMSIS/Include
 LDFLAGS := -mcpu=cortex-m3 -mthumb -nostdlib -TSTM32F103T8UX_BOOTLOADER.ld -Wl,--gc-sections -Wl,-Map=$(BUILD)/$(PROJECT).map -lgcc

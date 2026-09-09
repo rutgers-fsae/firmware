@@ -16,8 +16,19 @@
 #define BL_NODE_ID             1U
 #endif
 
-/* Car configuration: 12 MHz HSE, 72 MHz system clock, 36 MHz APB1. */
+/* Select with Makefile CLOCK=HSE (default) or CLOCK=HSI. */
+#define BL_CLOCK_SOURCE_HSE    1U
+#define BL_CLOCK_SOURCE_HSI    2U
+#ifndef BL_CLOCK_SOURCE
+#define BL_CLOCK_SOURCE        BL_CLOCK_SOURCE_HSE
+#endif
+
+#if (BL_CLOCK_SOURCE != BL_CLOCK_SOURCE_HSE) && (BL_CLOCK_SOURCE != BL_CLOCK_SOURCE_HSI)
+#error "BL_CLOCK_SOURCE must be BL_CLOCK_SOURCE_HSE or BL_CLOCK_SOURCE_HSI"
+#endif
+
 #define BL_HSE_FREQUENCY_HZ    12000000UL
+#define BL_HSI_FREQUENCY_HZ    8000000UL
 #ifndef BL_CAN_BITRATE
 #define BL_CAN_BITRATE         500000UL
 #endif
