@@ -21,9 +21,11 @@ All frames use 11-bit Classical CAN IDs. `BL_NODE_ID` is compiled separately for
 
 Commands provide info, begin/erase, set expected CRC-32, finish/verify, abort, start application, and reset. Data acknowledgements are idempotent: if an ACK is lost, the host can safely resend the last frame without programming it twice. An incomplete image is never marked bootable. After power loss the protected bootloader remains available for retransmission; this MCU does not have enough guaranteed flash for two copies of all current applications.
 
-## Confirmed hardware configuration
+## Internal-oscillator configuration
 
-The target boards use a 12 MHz external crystal and PA11/PA12 for CAN. The PLL multiplies 12 MHz by 6 for a 72 MHz system clock; APB1 runs at 36 MHz. CAN uses 18 time quanta with a prescaler of 4, producing the confirmed 500 kbit/s bitrate.
+This branch's bootloader uses the STM32F103's internal 8 MHz HSI oscillator, so it does not require the external crystal during an update. The PLL divides HSI by 2 and multiplies it by 9 for a 36 MHz system and APB1 clock. CAN uses 18 time quanta with a prescaler of 4, producing 500 kbit/s on PA11/PA12.
+
+The temperature application still switches to the board's 12 MHz external crystal after the bootloader starts it. HSI is less accurate and stable than the external crystal, so this variant requires CAN bench testing across expected voltage and temperature conditions before it is considered safe for vehicle use.
 
 ## Build
 

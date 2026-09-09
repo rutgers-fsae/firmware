@@ -16,8 +16,8 @@
 #define BL_NODE_ID             1U
 #endif
 
-/* Car configuration: 12 MHz HSE, 72 MHz system clock, 36 MHz APB1. */
-#define BL_HSE_FREQUENCY_HZ    12000000UL
+/* HSI variant: internal 8 MHz oscillator, 36 MHz system/APB1 clock. */
+#define BL_HSI_FREQUENCY_HZ    8000000UL
 #ifndef BL_CAN_BITRATE
 #define BL_CAN_BITRATE         500000UL
 #endif

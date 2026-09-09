@@ -6,7 +6,7 @@ OBJCOPY := arm-none-eabi-objcopy
 SIZE := arm-none-eabi-size
 
 CFLAGS := -mcpu=cortex-m3 -mthumb -std=gnu11 -Os -ffunction-sections -fdata-sections -Wall -Wextra -Werror \
-  -DSTM32F103xB -DUSE_HAL_DRIVER -DHSE_VALUE=12000000U -Iinclude -I$(CUBE)/Core/Inc \
+  -DSTM32F103xB -DUSE_HAL_DRIVER -Iinclude -I$(CUBE)/Core/Inc \
   -I$(CUBE)/Drivers/STM32F1xx_HAL_Driver/Inc -I$(CUBE)/Drivers/STM32F1xx_HAL_Driver/Inc/Legacy \
   -I$(CUBE)/Drivers/CMSIS/Device/ST/STM32F1xx/Include -I$(CUBE)/Drivers/CMSIS/Include
 LDFLAGS := -mcpu=cortex-m3 -mthumb -nostdlib -TSTM32F103T8UX_BOOTLOADER.ld -Wl,--gc-sections -Wl,-Map=$(BUILD)/$(PROJECT).map -lgcc
