@@ -1,7 +1,10 @@
 const std = @import("std");
 
+pub const info_can_id: u32 = 0x0D3;
+
 pub const FrameKind = enum { standard, extended };
 pub const Endian = enum { little, big };
+const Reading = struct { value: u32, timestamp_ms: u32 };
 
 pub const Frame = struct {
     id: u32,
@@ -51,6 +54,18 @@ pub const DecodeError = error{
     Overflow,
 };
 
+pub const State = enum { waiting_for_bms, precharging, complete, fault_latched };
+pub const Fault = enum(u8) {
+    stale_bms = 1,
+    stale_inverter = 2,
+    configuration = 3,
+    malformed_frame = 4,
+    implausible_voltage = 5,
+    timeout = 6,
+};
+
+// *****************************************************************
+
 pub fn checkCart(frame: Frame, spec: VoltageSpec) DecodeError!bool {
     if (frame.remote) return error.RemoteFrame;
     if (frame.id != spec.id or frame.kind != spec.kind) return error.WrongFrame;
@@ -95,24 +110,12 @@ pub fn decodeVoltage(frame: Frame, spec: VoltageSpec) DecodeError!u32 {
     return scaled[0] / spec.divisor;
 }
 
-pub const State = enum { waiting_for_bms, precharging, complete, fault_latched };
-pub const Fault = enum(u8) {
-    stale_bms = 1,
-    stale_inverter = 2,
-    configuration = 3,
-    malformed_frame = 4,
-    implausible_voltage = 5,
-    timeout = 6,
-};
-
-pub const info_can_id: u32 = 0x0D3;
-
 pub fn infoFrame(controller: Controller) Frame {
     var frame = Frame{ .id = info_can_id, .kind = .standard, .dlc = 5, .data = @splat(0) };
     frame.data[0] = if (controller.fault) |fault| @intFromEnum(fault) else switch (controller.state) {
         .complete => 7,
         .precharging => 8,
-        else => 0
+        else => 0,
     };
     if (controller.bms) |reading|
         std.mem.writeInt(u16, frame.data[1..3], @intCast(reading.value), .big);
@@ -120,8 +123,6 @@ pub fn infoFrame(controller: Controller) Frame {
         std.mem.writeInt(u16, frame.data[3..5], @intCast(reading.value), .big);
     return frame;
 }
-
-const Reading = struct { value: u32, timestamp_ms: u32 };
 
 pub const Controller = struct {
     config: ProtocolConfig,
