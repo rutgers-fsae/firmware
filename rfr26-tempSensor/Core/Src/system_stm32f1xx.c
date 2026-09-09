@@ -74,7 +74,7 @@
   */
 
 #if !defined  (HSE_VALUE) 
-  #define HSE_VALUE               8000000U /*!< Default value of the External oscillator in Hz.
+  #define HSE_VALUE               12000000U /*!< External oscillator frequency on the temperature board.
                                                 This value can be provided and adapted by the user application. */
 #endif /* HSE_VALUE */
 
@@ -102,12 +102,12 @@
 #if defined(VECT_TAB_SRAM)
 #define VECT_TAB_BASE_ADDRESS   SRAM_BASE       /*!< Vector Table base address field.
                                                      This value must be a multiple of 0x200. */
-#define VECT_TAB_OFFSET         0x00000000U     /*!< Vector Table base offset field.
+#define VECT_TAB_OFFSET         0x00004000U     /*!< Vector Table base offset field.
                                                      This value must be a multiple of 0x200. */
 #else
 #define VECT_TAB_BASE_ADDRESS   FLASH_BASE      /*!< Vector Table base address field.
                                                      This value must be a multiple of 0x200. */
-#define VECT_TAB_OFFSET         0x00000000U     /*!< Vector Table base offset field.
+#define VECT_TAB_OFFSET         0x00004000U     /*!< Vector Table base offset field.
                                                      This value must be a multiple of 0x200. */
 #endif /* VECT_TAB_SRAM */
 #endif /* USER_VECT_TAB_ADDRESS */

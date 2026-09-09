@@ -55,6 +55,7 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern CAN_HandleTypeDef hcan;
 
 /* USER CODE BEGIN EV */
 
@@ -200,5 +201,10 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /* USER CODE BEGIN 1 */
+
+void USB_LP_CAN1_RX0_IRQHandler(void)
+{
+  HAL_CAN_IRQHandler(&hcan);
+}
 
 /* USER CODE END 1 */

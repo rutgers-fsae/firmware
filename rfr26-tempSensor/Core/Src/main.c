@@ -31,6 +31,11 @@ typedef struct {
 #define MUX_DISABLE_CMD 0x80U
 #define DAQ_BASE_ID 0x18FF5000U
 #define DAQ_EXT_ID_MAX 0x1FFFFFFFU
+#ifndef BOOTLOADER_NODE_ID
+#define BOOTLOADER_NODE_ID 1U
+#endif
+#define BOOTLOADER_COMMAND_CAN_ID (0x600U + BOOTLOADER_NODE_ID)
+#define BOOTLOADER_RESET_COMMAND 0x05U
 // #define USE_SEMIHOSTING			true
 // #define SHOW_CHANNEL_TEMPS true
 
@@ -170,6 +175,7 @@ static HAL_StatusTypeDef CAN_SendChannelTemp(uint32_t id, uint8_t temp[7]) {
 
 		return HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
 	}
+	return HAL_BUSY;
 }
 
 // send the max/min temperatures to the BMS over CAN
@@ -198,6 +204,7 @@ static HAL_StatusTypeDef CAN_SendTemperatureStatistics(TempStatistics_t *stats) 
 
 		return HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
 	}
+	return HAL_BUSY;
 }
 
 static void CAN_Init_Filter(void) {
@@ -475,6 +482,7 @@ int main(void) {
 
 	CAN_Init_Filter();
 	HAL_CAN_Start(&hcan);
+	HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
 
 	if (HAL_ADCEx_Calibration_Start(&hadc1) != HAL_OK) {
 		Error_Handler();
@@ -525,6 +533,19 @@ int main(void) {
 	}
 }
 
+/* Reset into the protected bootloader when the host addresses this board. */
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *handle) {
+	CAN_RxHeaderTypeDef header;
+	uint8_t data[8];
+	if (handle != &hcan || HAL_CAN_GetRxMessage(handle, CAN_RX_FIFO0, &header, data) != HAL_OK)
+		return;
+	if (header.IDE == CAN_ID_STD && header.RTR == CAN_RTR_DATA &&
+		header.StdId == BOOTLOADER_COMMAND_CAN_ID && header.DLC >= 1U &&
+		data[0] == BOOTLOADER_RESET_COMMAND) {
+		NVIC_SystemReset();
+	}
+}
+
 /**
  * @brief System Clock Configuration
  * @retval None
@@ -540,7 +561,7 @@ void SystemClock_Config(void) {
 	RCC_OscInitStruct.HSIState = RCC_HSI_ON;
 	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
 	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-	RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
+	RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL6;
 	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
 		Error_Handler();
 	}
@@ -548,7 +569,7 @@ void SystemClock_Config(void) {
 	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK |
 	RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
 	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV2;
+	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
 	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
 	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
@@ -599,7 +620,7 @@ static void MX_ADC1_Init(void) {
  */
 static void MX_CAN_Init(void) {
 	hcan.Instance = CAN1;
-	hcan.Init.Prescaler = 3; /* was 2 → gave 750 kbps    */
+	hcan.Init.Prescaler = 4; /* 36 MHz APB1 / (4 * 18 TQ) = 500 kbps */
 	hcan.Init.Mode = CAN_MODE_NORMAL;
 	hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
 	hcan.Init.TimeSeg1 = CAN_BS1_13TQ;
