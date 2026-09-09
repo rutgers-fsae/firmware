@@ -1,0 +1,37 @@
+#ifndef BOOTLOADER_PROTOCOL_H
+#define BOOTLOADER_PROTOCOL_H
+
+#include <stdint.h>
+
+#define BL_CAN_DISCOVERY_ID       0x5E0U
+#define BL_CAN_COMMAND_BASE_ID    0x600U
+#define BL_CAN_DATA_BASE_ID       0x620U
+#define BL_CAN_RESPONSE_BASE_ID   0x680U
+
+typedef enum {
+    BL_CMD_INFO = 0x01,
+    BL_CMD_BEGIN = 0x02,
+    BL_CMD_SET_CRC = 0x03,
+    BL_CMD_END = 0x04,
+    BL_CMD_RESET = 0x05,
+    BL_CMD_START_APPLICATION = 0x06,
+    BL_CMD_ABORT = 0x07
+} bl_command_t;
+
+typedef enum {
+    BL_STATUS_ACK = 0x00,
+    BL_STATUS_READY = 0x01,
+    BL_STATUS_COMPLETE = 0x02,
+    BL_STATUS_BAD_COMMAND = 0x80,
+    BL_STATUS_BAD_STATE = 0x81,
+    BL_STATUS_BAD_LENGTH = 0x82,
+    BL_STATUS_BAD_SEQUENCE = 0x83,
+    BL_STATUS_BAD_IMAGE = 0x84,
+    BL_STATUS_FLASH_ERROR = 0x85,
+    BL_STATUS_WRONG_NODE = 0x86
+} bl_status_t;
+
+#define BL_PROTOCOL_VERSION 1U
+#define BL_DATA_BYTES_PER_FRAME 6U
+
+#endif
