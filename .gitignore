@@ -1,1 +1,7 @@
 .DS_Store
+
+# Kiro spec workflow files (planning/bookkeeping, not firmware)
+.kiro/
+
+# Editor settings (Kiro agent notification prefs, not firmware)
+.vscode/

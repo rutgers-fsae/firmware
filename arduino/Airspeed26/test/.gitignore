@@ -1,0 +1,6 @@
+# Host test build artifacts
+build/
+
+# Vendored property-testing library (fetched at a pinned commit by fetch_rapidcheck.sh).
+# Ignored to keep the firmware repo lean; re-fetch with: ./fetch_rapidcheck.sh
+rapidcheck/
