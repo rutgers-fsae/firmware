@@ -19,7 +19,7 @@ All frames use 11-bit Classical CAN IDs. A unique node ID from 1 through 7 is re
 - `0x620 + node`: data (`uint16` sequence followed by up to 6 image bytes)
 - `0x680 + node`: response
 
-Commands provide info, begin/erase, set expected CRC-32, finish/verify, abort, start application, and reset. Data acknowledgements are idempotent: if an ACK is lost, the host can safely resend the last frame without programming it twice. An incomplete image is never marked bootable. After power loss the protected bootloader remains available for retransmission; this MCU does not have enough guaranteed flash for two copies of all current applications.
+Commands provide info, begin/erase, set expected CRC-32, finish/verify, abort, start application, and reset. After a successful END, the bootloader reports COMPLETE and remains active until the host sends START and receives its acknowledgement. Data acknowledgements are idempotent: if an ACK is lost, the host can safely resend the last frame without programming it twice. An incomplete image is never marked bootable. After power loss the protected bootloader remains available for retransmission; this MCU does not have enough guaranteed flash for two copies of all current applications.
 
 ## Clock configuration
 
@@ -33,7 +33,7 @@ From this directory, run `make NODE=1` for a node-1 external-crystal build, or `
 
 The binaries are written below `build/HSE/nodeN/` or `build/HSI/nodeN/`. Initially install the selected binary with ST-LINK at `0x08000000`.
 
-With GCC 16.2.0 the HSE build occupies 6,384 bytes of flash and 1,120 bytes of RAM, fitting comfortably inside the reserved 16 KiB bootloader region.
+With GCC 16.2.0 the HSE build occupies 6,368 bytes of flash and 1,120 bytes of RAM, fitting comfortably inside the reserved 16 KiB bootloader region.
 
 ## Security assumption
 

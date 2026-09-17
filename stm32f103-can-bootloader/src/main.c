@@ -12,7 +12,7 @@ typedef struct {
     uint32_t reserved;
 } bl_metadata_t;
 
-typedef enum { RX_IDLE, RX_WAITING_CRC, RX_DATA } rx_state_t;
+typedef enum { RX_IDLE, RX_WAITING_CRC, RX_DATA, RX_COMPLETE } rx_state_t;
 
 static CAN_HandleTypeDef hcan;
 static rx_state_t rx_state;
@@ -137,7 +137,7 @@ static void process_command(const uint8_t data[8], uint8_t length) {
             send_status(BL_STATUS_FLASH_ERROR, command, expected_sequence, HAL_FLASH_GetError());
             break;
         }
-        rx_state = RX_IDLE;
+        rx_state = RX_COMPLETE;
         send_status(BL_STATUS_COMPLETE, command, expected_sequence, expected_crc);
         break;
     case BL_CMD_ABORT:

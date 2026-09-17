@@ -24,6 +24,9 @@ endif
 -include Core/Src/subdir.mk
 -include objects.mk
 
+.PHONY: FORCE_NODE
+Core/Src/main.o: FORCE_NODE
+
 ifneq ($(MAKECMDGOALS),clean)
 ifneq ($(strip $(S_DEPS)),)
 -include $(S_DEPS)
