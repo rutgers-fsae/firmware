@@ -34,6 +34,8 @@ to finish, hit the bright blue 'Generate Code' button in the top right.
 3. Once you have the project open in the IDE, open `Core/src/main.c` in the file tree and paste in the content of `Rutgers-Formula-Racing/rfr26-tempSensor/Core/src/main.c` into the IDE. You can go to **Project -> Build Project** to build the project and ensure that it compiles without error.
 
 ## Configuring build settings
+Before building, assign this board the same unique node ID (1–7) used for its bootloader. Command-line Debug and Release builds require it explicitly, for example `make -C Debug NODE=1` or `make -C Release NODE=1`; in STM32CubeIDE, add `BOOTLOADER_NODE_ID=1` under **C/C++ Build -> Settings -> MCU/MPU GCC Compiler -> Preprocessor** and replace `1` with the assigned board ID. Builds intentionally fail when this definition is missing so multiple boards cannot silently share node 1.
+
 1. We need to exclude `syscalls.c` from the build. In the file tree in the IDE, right click on `Core/src/syscalls.c` and click the properties option. Go to **C/C++ build** and check the 'Exclude Resource from Build' box. Click 'Apply and Close' to finish.
 ![exclude syscalls](images/image-2.png)
 2. Next, click the small dropdown next to the bug icon and open **Debug Configurations...**

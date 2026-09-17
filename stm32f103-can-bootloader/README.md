@@ -12,7 +12,7 @@ The current temperature-board binaries (about 17–26 KiB) fit. The application 
 
 ## Protocol
 
-All frames use 11-bit Classical CAN IDs. `BL_NODE_ID` is compiled separately for each board (1–7).
+All frames use 11-bit Classical CAN IDs. A unique node ID from 1 through 7 is required when compiling each board; there is deliberately no default.
 
 - `0x5E0`: discovery request
 - `0x600 + node`: commands
@@ -29,11 +29,15 @@ This choice applies only while the bootloader is running. After the bootloader s
 
 ## Build
 
-From this directory, run `make` for the default external-crystal build. Run `make CLOCK=HSI` for the internal-oscillator build. Each choice uses a separate output directory, so switching does not reuse files compiled for the other clock. The Makefile uses the STM32F1 HAL already committed under `rfr26-tempSensor` and expects `arm-none-eabi-gcc` on `PATH`. The compiler can also be selected explicitly, for example `make CC=/path/arm-none-eabi-gcc OBJCOPY=/path/arm-none-eabi-objcopy SIZE=/path/arm-none-eabi-size`.
+From this directory, run `make NODE=1` for a node-1 external-crystal build, or `make NODE=1 CLOCK=HSI` for its internal-oscillator build. Replace `1` with the board's assigned ID; omitting it or using a value outside 1–7 stops the build. Each clock and node combination uses a separate output directory, so switching settings does not reuse incompatible files. The Makefile uses the STM32F1 HAL already committed under `rfr26-tempSensor` and expects `arm-none-eabi-gcc` on `PATH`.
 
-The bootloader binaries are written to `build/HSE/stm32f103-can-bootloader.bin` and `build/HSI/stm32f103-can-bootloader.bin`. Initially install the selected binary with ST-LINK at `0x08000000`.
+The binaries are written below `build/HSE/nodeN/` or `build/HSI/nodeN/`. Initially install the selected binary with ST-LINK at `0x08000000`.
 
-With GCC 16.2.0 the current build occupies 6,308 bytes of flash and 1,120 bytes of RAM, fitting comfortably inside the reserved 16 KiB bootloader region.
+With GCC 16.2.0 the HSE build occupies 6,384 bytes of flash and 1,120 bytes of RAM, fitting comfortably inside the reserved 16 KiB bootloader region.
+
+## Security assumption
+
+CRC-32 detects transfer corruption but does not prove who created the firmware. This prototype therefore treats the vehicle CAN network as trusted; it must gain cryptographic firmware-signature verification before use on a network where an untrusted participant could transmit update commands.
 
 ## Host utility
 

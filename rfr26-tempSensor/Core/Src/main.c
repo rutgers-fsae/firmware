@@ -32,7 +32,10 @@ typedef struct {
 #define DAQ_BASE_ID 0x18FF5000U
 #define DAQ_EXT_ID_MAX 0x1FFFFFFFU
 #ifndef BOOTLOADER_NODE_ID
-#define BOOTLOADER_NODE_ID 1U
+#error "BOOTLOADER_NODE_ID is required (valid range: 1..7)"
+#endif
+#if (BOOTLOADER_NODE_ID < 1U) || (BOOTLOADER_NODE_ID > 7U)
+#error "BOOTLOADER_NODE_ID must be between 1 and 7"
 #endif
 #define BOOTLOADER_COMMAND_CAN_ID (0x600U + BOOTLOADER_NODE_ID)
 #define BOOTLOADER_RESET_COMMAND 0x05U
@@ -212,10 +215,10 @@ static void CAN_Init_Filter(void) {
 	f.FilterActivation = CAN_FILTER_ENABLE;
 	f.FilterBank = 0u;
 	f.FilterFIFOAssignment = CAN_RX_FIFO0;
-	f.FilterIdHigh = 0x0000u;
+	f.FilterIdHigh = (uint32_t) (BOOTLOADER_COMMAND_CAN_ID << 5);
 	f.FilterIdLow = 0x0000u;
-	f.FilterMaskIdHigh = 0x0000u;
-	f.FilterMaskIdLow = 0x0000u;
+	f.FilterMaskIdHigh = 0xFFE0u;
+	f.FilterMaskIdLow = 0x0006u; /* Match standard, data frames only. */
 	f.FilterMode = CAN_FILTERMODE_IDMASK;
 	f.FilterScale = CAN_FILTERSCALE_32BIT;
 	f.SlaveStartFilterBank = 14u;

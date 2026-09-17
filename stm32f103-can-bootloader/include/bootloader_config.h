@@ -11,9 +11,11 @@
 #define BL_FLASH_PAGE_SIZE     1024UL
 #define BL_MAX_IMAGE_SIZE      (BL_METADATA_ADDRESS - BL_APPLICATION_ADDRESS)
 
-/* Change per PCB (valid range: 1..7). */
 #ifndef BL_NODE_ID
-#define BL_NODE_ID             1U
+#error "BL_NODE_ID is required (valid range: 1..7)"
+#endif
+#if (BL_NODE_ID < 1U) || (BL_NODE_ID > 7U)
+#error "BL_NODE_ID must be between 1 and 7"
 #endif
 
 /* Select with Makefile CLOCK=HSE (default) or CLOCK=HSI. */

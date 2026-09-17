@@ -33,21 +33,31 @@ class CanFlasher:
     def _send(self, arbitration_id: int, payload: bytes) -> None:
         self.bus.send(can.Message(arbitration_id=arbitration_id, data=payload, is_extended_id=False))
 
-    def _response(self, allowed=(ACK, READY, COMPLETE)):
+    def _response(self, expected_command: int, allowed=(ACK, READY, COMPLETE)):
         deadline = time.monotonic() + self.timeout
         while time.monotonic() < deadline:
             msg = self.bus.recv(deadline - time.monotonic())
-            if msg and msg.arbitration_id == RESPONSE_BASE + self.node:
-                status, command, sequence, detail = struct.unpack("<BBHI", bytes(msg.data))
-                if status not in allowed:
-                    raise FlashError(f"target error 0x{status:02x}, command=0x{command:02x}, detail={detail}")
-                return status, command, sequence, detail
+            if not msg or msg.arbitration_id != RESPONSE_BASE + self.node:
+                continue
+            if (getattr(msg, "is_extended_id", False) or
+                    getattr(msg, "is_remote_frame", False) or
+                    getattr(msg, "is_error_frame", False)):
+                continue
+            payload = bytes(msg.data)
+            if getattr(msg, "dlc", len(payload)) != 8 or len(payload) != 8:
+                continue
+            status, command, sequence, detail = struct.unpack("<BBHI", payload)
+            if command != expected_command:
+                continue
+            if status not in allowed:
+                raise FlashError(f"target error 0x{status:02x}, command=0x{command:02x}, detail={detail}")
+            return status, command, sequence, detail
         raise FlashError("timed out waiting for target")
 
     def command(self, opcode: int, value: int | None = None, allowed=(ACK, READY, COMPLETE)):
         payload = bytes([opcode]) if value is None else struct.pack("<BI", opcode, value)
         self._send(COMMAND_BASE + self.node, payload)
-        return self._response(allowed)
+        return self._response(opcode, allowed)
 
     def flash(self, image: bytes, progress=lambda done, total: None) -> None:
         crc = zlib.crc32(image) & 0xFFFFFFFF
@@ -58,7 +68,7 @@ class CanFlasher:
             for attempt in range(self.retries + 1):
                 self._send(DATA_BASE + self.node, payload)
                 try:
-                    _, _, ack_sequence, written = self._response((ACK,))
+                    _, _, ack_sequence, written = self._response(0, (ACK,))
                     break
                 except FlashError:
                     if attempt == self.retries:
@@ -72,8 +82,10 @@ class CanFlasher:
         """Request an application reset, then discard any stale bootloader ACK."""
         self._send(COMMAND_BASE + self.node, bytes([RESET]))
         time.sleep(0.2)
-        while self.bus.recv(0) is not None:
-            pass
+        drain_deadline = time.monotonic() + 0.05
+        for _ in range(64):
+            if time.monotonic() >= drain_deadline or self.bus.recv(0) is None:
+                break
 
 
 def main() -> None:

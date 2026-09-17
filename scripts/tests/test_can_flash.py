@@ -19,6 +19,15 @@ class FakeBus:
     def recv(self, timeout): return self.responses.pop(0) if self.responses else None
 
 
+def response(node, status, command, sequence=0, detail=0, **overrides):
+    fields = dict(arbitration_id=module.RESPONSE_BASE + node,
+                  data=struct.pack("<BBHI", status, command, sequence, detail),
+                  is_extended_id=False, is_remote_frame=False,
+                  is_error_frame=False, dlc=8)
+    fields.update(overrides)
+    return types.SimpleNamespace(**fields)
+
+
 class CanFlasherTests(unittest.TestCase):
     def test_rejects_node_outside_supported_range(self):
         with self.assertRaises(ValueError): module.CanFlasher(FakeBus(), 8)
@@ -50,6 +59,29 @@ class CanFlasherTests(unittest.TestCase):
             data=struct.pack("<BBHI", 0x84, module.END, 4, 24)))
         with self.assertRaisesRegex(module.FlashError, "target error 0x84"):
             module.CanFlasher(bus, 2).command(module.END)
+
+    def test_ignores_malformed_and_wrong_command_responses(self):
+        bus = FakeBus()
+        bus.responses.extend([
+            response(2, module.ACK, module.BEGIN, data=b"short", dlc=5),
+            response(2, module.ACK, module.BEGIN, is_extended_id=True),
+            response(2, module.ACK, module.BEGIN, is_remote_frame=True),
+            response(2, module.ACK, module.SET_CRC),
+            response(2, module.ACK, module.BEGIN, detail=123),
+        ])
+        result = module.CanFlasher(bus, 2).command(module.BEGIN, 123)
+        self.assertEqual(result[1:], (module.BEGIN, 0, 123))
+
+    def test_enter_bootloader_bounds_queue_drain(self):
+        class BusyBus(FakeBus):
+            def __init__(self): super().__init__(); self.receive_count = 0
+            def recv(self, timeout):
+                self.receive_count += 1
+                return types.SimpleNamespace(arbitration_id=1, data=b"")
+
+        bus = BusyBus()
+        module.CanFlasher(bus, 1).enter_bootloader()
+        self.assertLessEqual(bus.receive_count, 64)
 
 
 if __name__ == "__main__": unittest.main()

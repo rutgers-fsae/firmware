@@ -7,6 +7,16 @@
 
 RM := rm -rf
 
+ifneq ($(MAKECMDGOALS),clean)
+ifndef NODE
+$(error NODE is required; choose a unique value from 1 through 7)
+endif
+VALID_NODES := 1 2 3 4 5 6 7
+ifeq ($(filter $(NODE),$(VALID_NODES)),)
+$(error NODE must be one of: $(VALID_NODES))
+endif
+endif
+
 # All of the sources participating in the build are defined here
 -include sources.mk
 -include Drivers/STM32F1xx_HAL_Driver/Src/subdir.mk

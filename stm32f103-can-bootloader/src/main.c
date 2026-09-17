@@ -268,12 +268,24 @@ static void jump_to_application(void) {
     uint32_t stack = *(const uint32_t *)BL_APPLICATION_ADDRESS;
     uint32_t reset = *(const uint32_t *)(BL_APPLICATION_ADDRESS + 4U);
     void (*application_reset)(void) = (void (*)(void))(uintptr_t)reset;
+    __disable_irq();
     HAL_CAN_Stop(&hcan);
     HAL_CAN_DeInit(&hcan);
     HAL_RCC_DeInit();
     HAL_DeInit();
-    __disable_irq();
+
+    SysTick->CTRL = 0U;
+    SysTick->LOAD = 0U;
+    SysTick->VAL = 0U;
+    SCB->ICSR = SCB_ICSR_PENDSTCLR_Msk | SCB_ICSR_PENDSVCLR_Msk;
+    for (uint32_t i = 0U; i < 8U; ++i) {
+        NVIC->ICER[i] = 0xFFFFFFFFUL;
+        NVIC->ICPR[i] = 0xFFFFFFFFUL;
+    }
+
     SCB->VTOR = BL_APPLICATION_ADDRESS;
+    __DSB();
+    __ISB();
     __set_MSP(stack);
     __enable_irq();
     application_reset();
