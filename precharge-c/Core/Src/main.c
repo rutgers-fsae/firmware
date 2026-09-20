@@ -340,7 +340,6 @@ void initController(Controller *self, ProtocolConfig config, uint32_t nowMS) {
   self->config = config;
   bool valid = checkConfig(config);
   self->state = valid ? WAITING_FOR_BMS : FAULT;
-  self->hasFault = !valid;
   self->fault = valid ? NONE : CONFIGURATION; // Set fault code to CONFIGURATION
   self->startedMS = nowMS;
   self->prechargingStartedMS = 0;
@@ -404,7 +403,6 @@ DecodeError checkCart(const Frame *frame, VoltageSpec spec, bool *outCart) {
 void controllerLatch(Controller *self, Fault fault) {
   self->state = FAULT;
   self->fault = fault;
-  self->hasFault = true;
 }
 
 DecodeError decodeVoltage(const Frame *frame, VoltageSpec spec, uint32_t *outVal) {
@@ -568,7 +566,7 @@ bool txCAN(const Frame *frame) {
   if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan) < 1) {
     return false;
   }
-  
+
   if (frame == NULL) {
     return false;
   }
@@ -605,7 +603,7 @@ Frame infoFrame(const Controller *self) {
     .dlc = 5,
     .data = {0}
   };
-  if (self->hasFault) {
+  if (self->fault != NONE) {
     frame.data[0] = (uint8_t)self->fault;
   }
   else {

@@ -125,7 +125,6 @@ typedef struct {
   ProtocolConfig config;
   State state;
   Fault fault;
-  bool hasFault;
   uint32_t startedMS;
   bool hasPrechargingStartedMS;
   uint32_t prechargingStartedMS;
