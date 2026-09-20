@@ -70,8 +70,8 @@ void loop() {
 
   bool pedalPressed = (sensor1Percentage > 10.0f && sensor2Percentage > 10.0f);
 
-  Serial.print("APPS 1: ");  Serial.println(sensor1Percentage);
-  Serial.print("APPS 2: ");  Serial.println(sensor2Percentage);
+  // Serial.print("APPS 1: ");  Serial.println(sensor1Percentage);
+  // Serial.print("APPS 2: ");  Serial.println(sensor2Percentage);
 
   // APPS mismatch fault
   bool mismatchNow = (fabsf(sensor1Percentage - sensor2Percentage) > 10.0f);
@@ -104,6 +104,11 @@ void loop() {
 
   bool implausibility = implausibilityLatched || !pedalPressed;
 
-  Serial.println(implausibility);
+  if (implausibility) {
+    Serial.println("implausuible");
+  } else {
+    Serial.println("plausable");
+  }
+  // Serial.println(implausibility);
   set_implausibility(implausibility);
 }

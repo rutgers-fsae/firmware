@@ -1,0 +1,9 @@
+[submodule "temp-board-rewrite"]
+	path = temp-board-rewrite
+	url = https://github.com/rutgers-fsae/temp-board-rewrite
+[submodule "daq-website"]
+	path = daq-website
+	url = https://github.com/rutgers-fsae/daq-website
+[submodule "vectorNav"]
+	path = vectorNav
+	url = https://github.com/rutgers-fsae/vectorNav

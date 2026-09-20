@@ -1,0 +1,3 @@
+.zig-cache/
+stm32/
+zig-pkg/
