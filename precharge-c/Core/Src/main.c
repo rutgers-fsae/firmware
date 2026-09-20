@@ -565,6 +565,10 @@ void controllerTick(Controller *self, uint32_t nowMS) {
 }
 
 bool txCAN(const Frame *frame) {
+  if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan) < 1) {
+    return false;
+  }
+  
   if (frame == NULL) {
     return false;
   }
