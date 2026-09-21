@@ -33,6 +33,7 @@ extern "C" {
 /* USER CODE BEGIN Includes */
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include "stm32f103xb.h"
 #include "stm32f1xx_hal_can.h"
 #include "stm32f1xx_hal_flash.h"
