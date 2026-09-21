@@ -55,12 +55,12 @@ static const ProtocolConfig BASE_CONFIG = {
     .width = TWO,
     .endian = BIG,
     .multiplier = 1,
-    .divisor = 1,
+    .divisor = 10,
     .cartOffset = 5
   },
   .inverter = {
     .id = 0x0A7,
-    .kind = EXTENDED,
+    .kind = STANDARD,
     .offset = 0,
     .width = TWO,
     .endian = LITTLE,
@@ -159,7 +159,7 @@ int main(void)
     if (controller.state == COMPLETE) {
       HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_SET);
     }
-    else if (controller.state == FAULT) {
+    else if (controller.state == FAULT || controller.state == PRECHARGING) {
       HAL_GPIO_WritePin(GPIOA, GPIO_PIN_7, GPIO_PIN_RESET);
     }
 
@@ -495,6 +495,11 @@ void controllerQualify(Controller *self, uint32_t nowMS) {
   uint64_t lhs = (uint64_t)self->inverter.value * 100ULL;
   uint64_t rhs = (uint64_t)self->bms.value * self->config.thresholdPercent;
 
+  if (self->state == COMPLETE && inverter.value < 200) {
+    self->state = PRECHARGING;
+    return;
+  }
+
   // 3 count check
   if (lhs >= rhs) {
     self->consecutiveQualifying++;
@@ -508,10 +513,6 @@ void controllerQualify(Controller *self, uint32_t nowMS) {
 }
 
 void ingestController(Controller *self, const Frame *frame, uint32_t nowMS) {
-  if (self->state == COMPLETE || self->state == FAULT) {
-    return;
-  }
-
   if (matchSpec(frame, self->config.bms)) {
     bool cart = false;
     DecodeError cartError = checkCart(frame, self->config.bms, &cart);
