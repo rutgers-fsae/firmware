@@ -1,3 +1,7 @@
 .DS_Store
 __pycache__/
 precharge-c/build/
+
+# Local Arduino development recordings, generated reports, and test/build data.
+/outputs/
+/work/
