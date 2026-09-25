@@ -1,0 +1,25 @@
+# Recorded and generated data stays local.
+runs/
+data/
+reports/
+.test-output/
+*.csv
+*.run.json
+zero-calibration-*.json
+read-rate-benchmark.json
+logger-throughput-validation.json
+*.log
+.airspeed-logger.lock
+
+# Dependencies, caches, and compiled firmware/tests.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+build/
+*.bin
+*.hex
+*.elf
+*.map
+*.o
+.DS_Store
