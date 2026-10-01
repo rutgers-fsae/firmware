@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { extname } from "node:path";
 
 // Submodules and upstream STM32 drivers are maintained outside this repository.
@@ -13,6 +13,23 @@ const run = (command, args, options = {}) => {
 };
 const pythonTool = (tool, args) =>
   run("uv", ["run", "--locked", "--project", "python", tool, ...args]);
+const pushRanges = (input) =>
+  input
+    .trim()
+    .split("\n")
+    .filter(Boolean)
+    .flatMap((line) => {
+      const [, local, , remote] = line.split(/\s+/);
+      if (/^0+$/.test(local)) return [];
+      return [
+        [
+          /^0+$/.test(remote)
+            ? "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+            : remote,
+          local,
+        ],
+      ];
+    });
 
 const mode = process.argv[2];
 if (mode === "test") {
@@ -23,19 +40,38 @@ if (mode === "test") {
   assert(!excluded.test("precharge-c/Core/Inc/stm32f1xx_hal_conf.h"));
   assert(!excluded.test("precharge-c/Core/Src/main.c"));
   assert(!excluded.test("new-project/main.c"));
+  assert.deepEqual(pushRanges("refs/heads/main abc refs/heads/main def\n"), [
+    ["def", "abc"],
+  ]);
+  assert.deepEqual(pushRanges("refs/heads/main 000 refs/heads/main def\n"), []);
+  assert.deepEqual(pushRanges("refs/heads/new abc refs/heads/new 000\n"), [
+    ["4b825dc642cb6eb9a060e54bf8d69288fbee4904", "abc"],
+  ]);
+  assert.deepEqual(pushRanges(""), []);
   console.log("Quality scope checks passed.");
 } else {
   assert(["check", "format"].includes(mode), "Use check, format, or test");
   const format = mode === "format";
+  const scope = process.argv[3];
+  assert(
+    !scope || ["--staged", "--push"].includes(scope),
+    "Use --staged or --push",
+  );
+  const diff = ["diff", "--name-only", "-z", "--diff-filter=ACMR"];
+  const queries =
+    scope === "--staged"
+      ? [[...diff, "--cached"]]
+      : scope === "--push"
+        ? pushRanges(readFileSync(0, "utf8")).map((range) => [
+            ...diff,
+            ...range,
+          ])
+        : [["ls-files", "-z", "--cached", "--others", "--exclude-standard"]];
   const files = [
     ...new Set(
-      execFileSync(
-        "git",
-        ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-        {
-          encoding: "utf8",
-        },
-      ).split("\0"),
+      queries.flatMap((args) =>
+        execFileSync("git", args, { encoding: "utf8" }).split("\0"),
+      ),
     ),
   ].filter(owned);
   const select = (extensions) =>

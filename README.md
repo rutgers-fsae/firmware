@@ -20,7 +20,9 @@ npm run format
 npm run check
 ```
 
-`npm ci` installs Husky hooks. Commits and pushes run the same checks as CI:
+`npm ci` installs Husky hooks. Commits check staged files; pushes check files
+changed between the remote and pushed commits (all files for a new remote branch).
+CI and `npm run check` check the whole repository. The checks include:
 Prettier and ESLint for JavaScript and repository documents, Ruff formatting and
 linting plus ty type checking for Python, clang-format and Cppcheck for C,
 and `zig fmt`, `zig ast-check`, and host tests for Zig.
