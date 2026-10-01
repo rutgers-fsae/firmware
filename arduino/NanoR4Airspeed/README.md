@@ -1,10 +1,131 @@
-# Nano R4 airspeed recorder
+# Airspeed recorder: Raspberry Pi or Nano R4
 
-Reads a Matek ASPD-4525 differential-pressure sensor with an Arduino Nano R4 and records it over USB in a Python/Tk desktop application. The GUI supports named runs, 1–1,000 requested reads/s, zero calibration, live pressure/airspeed plots, and a saved-run dropdown.
+Reads a Matek ASPD-4525 differential-pressure sensor directly on a Raspberry Pi Zero 2 W with a headless Python logger, or with an Arduino Nano R4 over USB in a Python/Tk desktop application. The GUI supports named runs, 1–1,000 requested reads/s, zero calibration, live pressure/airspeed plots, and a saved-run dropdown.
 
 This is a bench acquisition and analysis tool. It has not been validated as a vehicle safety/control system or calibrated against a reference airspeed instrument. The GUI calculates standard-density airspeed; it does not measure atmospheric density or ground speed.
 
-## Hardware
+## Raspberry Pi Zero 2 W (alongside VectorNav)
+
+The Pi reads the ASPD-4525 directly over `/dev/i2c-1`; no Arduino is needed.
+`logger/airspeed_pi.py` follows the implementation in
+`../../vectorNav/rfr_vn300_logger.py` and its `deploy/` directory: headless Python,
+a dedicated systemd account, editable settings, UTC CSV timestamps, SIGINT/SIGTERM
+shutdown, one-second flushes, and disk sync every five seconds and on close.
+It reuses this project's pressure calculation, zero calibration, and run format.
+Python 3.10+ on Raspberry Pi OS Lite works; neither Tk nor pyserial is needed.
+
+Airspeed uses `/opt/airspeed`, `/var/lib/airspeed`, and an `airspeed` account.
+VectorNav keeps its USB device, services, dashboard port 8080, and log directory.
+The two loggers run independently; starting/stopping VectorNav from its dashboard
+only controls VectorNav. The VectorNav dashboard can request an airspeed zero; no merged CSV is included.
+
+### Pi wiring
+
+**Pi GPIO is 3.3 V only. Do not reuse the Nano's SDA/SCL pull-ups to 5 V on the Pi.**
+Use a bidirectional I2C level shifter between the 5 V sensor bus and Pi bus,
+with pull-ups appropriate to each side. Power the ASPD-4525 from 5 V and share
+ground. With power disconnected, wire:
+
+| Connection | Pi physical header pin / destination |
+| --- | --- |
+| Sensor 5V and level shifter HV | Pin 2 or 4 (5 V) |
+| Sensor GND and shifter GND | Pin 6 (GND) |
+| Shifter LV reference | Pin 1 (3.3 V) |
+| Shifter low-side SDA | Pin 3 (GPIO2 / SDA1) |
+| Shifter low-side SCL | Pin 5 (GPIO3 / SCL1) |
+| Sensor SDA | Shifter high-side SDA |
+| Sensor SCL | Shifter high-side SCL |
+
+Keep I2C wires short and use the default 100 kHz bus initially. Do not attach the
+Nano as another bus master. The sensor address defaults to `0x28`. The transaction
+is a plain two-byte I2C read, without a register write, matching the Arduino.
+See [Pi GPIO electrical guidance](https://pip-assets.raspberrypi.com/categories/685-whitepapers-app-notes/documents/RP-006553-WP/A-history-of-GPIO-usage-on-Raspberry-Pi-devices-and-current-best-practices)
+and [smbus2 plain I2C operations](https://smbus2.readthedocs.io/en/0.5.0/).
+
+### Dashboard zero control
+
+With the combined VectorNav setup, unlock the dashboard with its operator PIN,
+then choose **Zero airspeed** with both pressure ports at equal pressure in
+still air. The dashboard shows sample count, elapsed time, success, and errors.
+The airspeed service keeps recording but leaves calculated speeds blank during
+zeroing. It needs at least 20 fresh samples over five seconds and rejects noisy
+or timed-out zeros; failure preserves the previous saved calibration.
+
+Control uses a local Unix socket owned by the airspeed service and accessible
+to the VectorNav group; the dashboard needs no root permissions. Update both
+services by rerunning the combined setup script after copying updated files
+to the Pi. Manual `--zero` remains available below.
+
+### Install and zero
+
+Copy this directory to the Pi, then run from its root:
+
+```sh
+sudo bash deploy/install-rpi.sh --no-start
+```
+
+The installer enables I2C, installs a small Python virtual environment and the
+service, and preserves existing `/etc/default/airspeed-logger` settings.
+Reboot if `/dev/i2c-1` is not present after enabling I2C. The service is enabled
+for future boots even with `--no-start`.
+
+Zero deliberately with both ports at equal pressure in still air. Stop the
+service first, then collect at least 20 fresh samples spanning five seconds:
+
+```sh
+sudo systemctl stop airspeed-logger
+sudo -u airspeed /opt/airspeed/venv/bin/python /opt/airspeed/logger/airspeed_pi.py --zero
+sudo systemctl start airspeed-logger
+journalctl -u airspeed-logger -f
+```
+
+Zero exits after saving `/var/lib/airspeed/zero.json`. It rejects noisy readings
+and times out after 45 seconds; cancellation preserves the previous file.
+The service explicitly reuses that calibration on subsequent launches. Redo it
+when changing sensors/tubing or when the baseline drifts. Bus/address identify
+the connection, not an individual sensor. A missing calibration records pressure
+with `needs_zero` and blank speeds; a malformed or mismatched calibration stops
+the process. It never assumes the vehicle is stationary at startup.
+
+Settings in `/etc/default/airspeed-logger` include bus, address, rate, air density,
+output directory and calibration file. Restart the service after edits. When
+zeroing a different bus/address, supply the same `--bus`, `--address`, and
+`--calibration` values manually. Use the same `--output-dir` as the service so
+the instance lock prevents concurrent reads/zeroing.
+
+Each service start creates a new named CSV and `.run.json` under
+`/var/lib/airspeed/logs`. Download a CSV and use the existing desktop GUI's saved
+run viewer by placing the files in its data directory. A manual recording is:
+
+```sh
+sudo systemctl stop airspeed-logger
+sudo -u airspeed /opt/airspeed/venv/bin/python /opt/airspeed/logger/airspeed_pi.py --rate 100 --title "Fan test"
+# Ctrl-C saves and closes the recording; restart the service when finished.
+```
+
+Requested rates remain 1–1,000 Hz, with 20 Hz as the default. Linux scheduling,
+I2C, disk sync, and the simultaneous VectorNav workload can reduce the achieved
+rate. Missed scheduling slots are counted; the journal reports measured rate
+and CSV rows retain stale/error readings with blank speeds. Three consecutive
+I2C failures close the recording and exit; systemd retries after three seconds.
+No GPIO bus-clear pulses are attempted while the Linux I2C driver owns the pins.
+Check sensor power/wiring if retries continue.
+
+`sample_utc` is the Pi wall clock just before the read; `device_elapsed_s` is
+monotonic elapsed time and `device_sequence` counts Pi read attempts. Arduino
+`device_micros` is left blank. These timestamps share the Pi clock with
+VectorNav's host timestamps but do not synchronize sensor acquisition or GNSS
+time. Set the Pi clock before a run; a Zero 2 W has no battery-backed RTC.
+Pi hardware timing and concurrent VectorNav load have not yet been measured.
+
+Portable acquisition checks (no Pi required):
+
+```sh
+python3 -m unittest discover -s tests -p 'test_pi.py'
+bash -n deploy/install-rpi.sh
+```
+
+## Arduino Nano R4 hardware (existing option)
 
 | ASPD-4525 PCB label | Nano R4 pin |
 | ------------------- | ----------- |
@@ -101,6 +222,7 @@ After three consecutive failed reads, firmware attempts bounded bus recovery, wi
 
 ## Files and ignored data
 
+- `deploy/`: Pi installer, I2C dependency, systemd service and settings.
 - `firmware/`: complete Arduino acquisition sketch.
 - `tools/`: optional I2C scanner.
 - `logger/`: GUI, protocol/measurement helpers, serial worker, and dependency pin.
