@@ -27,8 +27,10 @@ capture_c = source[
         "// use linear interperolation"
     )
 ]
+warmup = int(re.search(r"#define FILTER_WARMUP_SAMPLES (\d+)U", source)[1])
+capture_samples = warmup + 500
 oc_mode = re.search(r"sConfigOC.OCMode = (\w+);", source)[1]
-expected_sos = butter(4, 5000, fs=45000, output="sos").astype(np.float32)
+expected_sos = butter(4, 200, fs=45000, output="sos").astype(np.float32)
 
 # Extract the coefficients actually compiled into the firmware.
 rows = source.split("static const float sos[NUM_STAGES][5] = {", 1)[1].split("};", 1)[0]
@@ -42,8 +44,8 @@ sos = np.array(
 sos = np.insert(sos, 3, 1, axis=1)
 np.testing.assert_array_equal(sos, expected_sos)
 assert np.all([np.max(np.abs(np.roots(row[3:]))) < 1 for row in sos])
-_, response = sosfreqz(sos, worN=[0, 1000, 5000, *range(18000, 21001, 100)], fs=45000)
-assert abs(abs(response[0]) - 1) < 1e-6
+_, response = sosfreqz(sos, worN=[0, 10, 200, *range(18000, 21001, 100)], fs=45000)
+assert abs(abs(response[0]) - 1) < 5e-4
 assert abs(20 * np.log10(abs(response[1]))) < 0.01
 assert abs(20 * np.log10(abs(response[2])) + 3.0103) < 0.01
 assert np.max(20 * np.log10(abs(response[3:]))) < -60
@@ -98,7 +100,7 @@ HAL_StatusTypeDef HAL_TIM_PWM_Stop(TIM_HandleTypeDef *h, uint32_t channel) {
 }
 HAL_StatusTypeDef HAL_ADC_Start_DMA(ADC_HandleTypeDef *h, uint32_t *buffer, uint32_t n) {
     (void)h; assert(!timer_running && counter_reset && !dma_armed);
-    assert(n==564 && (uintptr_t)buffer%4==0);
+    assert(n==ADC_CAPTURE_SAMPLES && (uintptr_t)buffer%4==0);
     if (mode==3) return HAL_ERROR;
     if (mode==5) return HAL_OK; /* HAL silently failed to arm DMA */
     dma_armed=1; return HAL_OK;
@@ -140,7 +142,7 @@ int capture_run(int requested_mode, uint32_t start) {
     adc_capture_status=HAL_OK; /* stale completion must not bypass capture */
     int result=ADC1_Capture();
     assert(!timer_running && !dma_armed && stops>0);
-    if (requested_mode==1) assert(tick-start>=25);
+    if (requested_mode==1) assert(tick-start>=ADC_CAPTURE_TIMEOUT_MS);
     return result;
 }
 """
@@ -188,6 +190,7 @@ with tempfile.TemporaryDirectory(prefix="rfr-filter-") as temp:
             valid = lib.filter_average(samples.ctypes.data_as(up), ctypes.byref(value))
             return valid, value.value
 
+        # Float32 rounding at 200 Hz must stay within one 12-bit ADC count.
         rng = np.random.default_rng(42)
         cases = [
             (np.r_[1.0, np.zeros(999)], 0),
@@ -198,43 +201,48 @@ with tempfile.TemporaryDirectory(prefix="rfr-filter-") as temp:
             reference = sosfilt(
                 sos.astype(float), x, zi=sosfilt_zi(sos.astype(float)) * seed
             )[0]
-            np.testing.assert_allclose(run(x, seed), reference, rtol=0, atol=0.02)
+            np.testing.assert_allclose(run(x, seed), reference, rtol=0, atol=1.0)
         # Repeated resets must not carry state from the previous mux channel.
         for level in [2500, 2000, 2900, 2000]:
-            assert np.max(np.abs(run(np.full(564, level), level) - level)) < 0.1
-            valid, value = average(np.full(564, level))
-            assert valid and abs(value - level) < 0.1
+            assert np.max(np.abs(run(np.full(capture_samples, level), level) - level)) < 1.0
+            valid, value = average(np.full(capture_samples, level))
+            assert valid and abs(value - level) < 1.0
+        # A large initial error must settle before the averaging window.
+        samples = np.full(capture_samples, 2900, dtype=np.uint16)
+        samples[0] = 2000
+        valid, value = average(samples)
+        assert valid and abs(value - 2900) < 1.0
         for f in [18000, 20000, 21000]:
             n = np.arange(4500)
-            x = 2500 + 200 * np.sin(2 * np.pi * f * n / 45000)
-            y = run(x, x[0])[64:]
-            assert np.sqrt(np.mean((y - 2500) ** 2)) < 0.2
+            x = 2500 + 200 * np.cos(2 * np.pi * f * n / 45000)
+            y = run(x, x[0])[warmup:]
+            assert np.sqrt(np.mean((y - 2500) ** 2)) < 1.0
         for level in [0, 1911, 2962, 4095]:
-            assert not average(np.full(564, level))[0]
+            assert not average(np.full(capture_samples, level))[0]
         for level in [1912, 2961]:
-            assert average(np.full(564, level))[0]
-        samples = np.full(564, 2500, dtype=np.uint16)
-        samples[64 : 64 + 424] = 0
+            assert average(np.full(capture_samples, level))[0]
+        samples = np.full(capture_samples, 2500, dtype=np.uint16)
+        samples[warmup : warmup + 424] = 0
         assert average(samples)[0]
-        samples[64 + 424] = 0
+        samples[warmup + 424] = 0
         assert not average(samples)[0]
         # Warmup affects state but must not affect raw fault counts.
-        samples = np.full(564, 2500, dtype=np.uint16)
-        samples[:64] = 4095
+        samples = np.full(capture_samples, 2500, dtype=np.uint16)
+        samples[:warmup] = 4095
         valid, value = average(samples)
         reference = sosfilt(
             sos.astype(float), samples, zi=sosfilt_zi(sos.astype(float)) * samples[0]
         )[0]
-        assert valid and abs(value - reference[64:].mean()) < 0.02
+        assert valid and abs(value - reference[warmup:].mean()) < 1.0
         # A rejected raw sample must still update the recursive filter.
-        samples = np.full(564, 2500, dtype=np.uint16)
-        samples[100] = 0
+        samples = np.full(capture_samples, 2500, dtype=np.uint16)
+        samples[warmup + 100] = 0
         reference = sosfilt(
             sos.astype(float), samples, zi=sosfilt_zi(sos.astype(float)) * samples[0]
         )[0]
         valid, value = average(samples)
-        accepted = samples[64:] > 1911
-        assert valid and abs(value - reference[64:][accepted].mean()) < 0.02
+        accepted = samples[warmup:] > 1911
+        assert valid and abs(value - reference[warmup:][accepted].mean()) < 1.0
         assert not np.isfinite(run([2500], float("inf"))[0])
         for start in [0, 0xFFFFFFF0]:
             for mode, result in [

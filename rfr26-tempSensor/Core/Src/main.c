@@ -38,20 +38,20 @@ typedef struct {
 
 /* FILTER BEGIN: also compiled by test_filter.py without the STM32 HAL. */
 #define ADC_SAMPLE_RATE_HZ 45000U
-#define FILTER_WARMUP_SAMPLES 64U
+#define FILTER_WARMUP_SAMPLES 800U /* 17.8 ms at 45 kHz. */
 #define CHANNEL_SAMPLES 500U
 #define ADC_CAPTURE_SAMPLES (FILTER_WARMUP_SAMPLES + CHANNEL_SAMPLES)
-#define ADC_CAPTURE_TIMEOUT_MS 25U
+#define ADC_CAPTURE_TIMEOUT_MS 45U
 #define NUM_STAGES 2U
 
-/* Fourth-order Butterworth, fc=5 kHz, fs=45 kHz; rows: b0,b1,b2,a1,a2.
- * Design: scipy.signal.butter(4, 5000, fs=45000, output='sos').astype(float32)
- * Approximately 95 dB attenuation at 20 kHz in the digital model.
+/* Fourth-order Butterworth, fc=200 Hz, fs=45 kHz; rows: b0,b1,b2,a1,a2.
+ * Design: scipy.signal.butter(4, 200, fs=45000, output='sos').astype(float32)
+ * Coefficients use the 45 kHz timer rate with the 12 MHz HSE clock tree.
  * Keep the analog anti-alias filter; digital filtering cannot undo aliasing.
  */
 static const float sos[NUM_STAGES][5] = {
-	{0.00689040124f, 0.0137808025f, 0.00689040124f, -0.961245358f, 0.254816681f},
-	{1.0f, 2.0f, 1.0f, -1.22962153f, 0.605156839f},
+	{3.665523352e-08f, 7.331046703e-08f, 3.665523352e-08f, -1.948944807f, 0.9497049451f},
+	{1.0f, 2.0f, 1.0f, -1.978084087f, 0.9788556099f},
 };
 
 typedef struct {
@@ -397,7 +397,7 @@ static float SensorVoltageToTempC(float voltage) {
 	return -999.0f;
 }
 
-// Scan 90 channels: 5 ms analog settling, then 564 samples at 45 kHz.
+// Scan 90 channels: 5 ms analog settling, then 1300 samples at 45 kHz.
 static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
 	uint8_t mux;
 	uint8_t ch;
