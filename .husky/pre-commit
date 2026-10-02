@@ -1,1 +1,1 @@
-npm run check -- --staged
+npm run check -- --staged --fix

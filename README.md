@@ -26,8 +26,9 @@ CI and `npm run check` check the whole repository. The checks include:
 Prettier and ESLint for JavaScript and repository documents, Ruff formatting and
 linting plus ty type checking for Python, clang-format and Cppcheck for C,
 and `zig fmt`, `zig ast-check`, and host tests for Zig.
-The hooks check formatting without changing or staging files; use `npm run format`
-to apply formatting and safe lint fixes before committing.
+The hooks automatically apply formatting and safe lint fixes, then run validation.
+If files change, the hook stops so you can stage and commit the fixes before
+retrying. Files are not automatically staged, preserving partially staged changes.
 
 GitHub Actions runs on pushes to every branch and on pull requests. Configure
 repository rulesets to require the `Code quality / quality` status check to block

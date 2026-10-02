@@ -1,1 +1,1 @@
-npm run check -- --push
+npm run check -- --push --fix

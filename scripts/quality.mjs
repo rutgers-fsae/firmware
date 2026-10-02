@@ -51,7 +51,7 @@ if (mode === "test") {
   console.log("Quality scope checks passed.");
 } else {
   assert(["check", "format"].includes(mode), "Use check, format, or test");
-  const format = mode === "format";
+  const format = mode === "format" || process.argv.includes("--fix");
   const scope = process.argv[3];
   assert(
     !scope || ["--staged", "--push"].includes(scope),
@@ -74,6 +74,8 @@ if (mode === "test") {
       ),
     ),
   ].filter(owned);
+  const originals =
+    format && scope ? files.map((file) => readFileSync(file)) : [];
   const select = (extensions) =>
     files.filter((file) => extensions.includes(extname(file)));
   const web = select([
@@ -112,7 +114,7 @@ if (mode === "test") {
   if (py.length) {
     pythonTool("ruff", ["check", ...(format ? ["--fix"] : []), ...py]);
     pythonTool("ruff", ["format", ...(format ? [] : ["--check"]), ...py]);
-    if (!format)
+    if (mode === "check")
       pythonTool("ty", [
         "check",
         "--project",
@@ -127,7 +129,7 @@ if (mode === "test") {
       ...(format ? [] : ["--Werror"]),
       ...c,
     ]);
-  if (!format) {
+  if (mode === "check") {
     for (const project of new Set(
       c
         .filter((file) => file.endsWith(".c"))
@@ -164,10 +166,14 @@ if (mode === "test") {
   }
   if (zig.length) {
     run("zig", ["fmt", ...(format ? [] : ["--check"]), ...zig]);
-    if (!format) {
+    if (mode === "check") {
       for (const file of zig.filter((file) => file.endsWith(".zig")))
         run("zig", ["ast-check", file]);
       run("zig", ["test", "precharge/src/test.zig"]);
     }
   }
+  assert(
+    originals.every((content, i) => content.equals(readFileSync(files[i]))),
+    "Auto-fixes applied. Stage and commit the fixed files, then retry.",
+  );
 }
