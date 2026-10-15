@@ -1,29 +1,27 @@
 /*
  * Radiator Fan + Pump PWM Controller
- * Target: ATmega328P (Arduino Mini)
+ * Target: ATmega328P (classic Arduino Nano)
  *
  * ── Timer allocation ────────────────────────────────────────────────────────
  *   Timer 0 → D5, D6   untouched — reserved for millis() / delay()
  *   Timer 1 → D9       pump PWM, Phase Correct PWM, 500 Hz
  *   Timer 2 → D3       fan PWM,  Fast PWM,          25 kHz
- *                       D11 unavailable as PWM, but remains SPI MOSI
+ *                       D11 unavailable as PWM
  *
  * ── PWM API ─────────────────────────────────────────────────────────────────
  *   setPumpDuty(uint8_t percent)   0–100
  *   setFanDuty(uint8_t percent)    0–100
  *
  * ── DAQ usage ───────────────────────────────────────────────────────────────
- *   Temperature, fan duty, and pump duty are logged to a new RUNnnnnn.CSV on an
- *   SPI SD card once per second. D10 is the SD card chip-select pin.
+ *   CSV samples are sent at 1 Hz over D1/TX, 115200 baud, 8N1.
+ *   Connect TX through 5V-to-3.3V level shifting to Pi GPIO15/RX (pin 10),
+ *   and connect grounds. Fan/pump control runs independently of the Pi.
  */
 
 #include <math.h>
-#include <SPI.h>
-#include <SD.h>
 
 // ── Build-time config ────────────────────────────────────────────────────────
-#define SD_CS_PIN 10
-#define LOG_INTERVAL 1000UL // ms between SD-card samples
+#define LOG_INTERVAL 1000UL // ms between serial samples
 
 // ── Pin assignments ──────────────────────────────────────────────────────────
 #define PUMP_PIN 9  // OC1A — Timer 1 Phase Correct PWM
@@ -40,7 +38,6 @@ const float Beta = 3950.0;     // Beta coefficient (K) — verify against your p
 const float T0 = 298.15;       // Nominal temperature (25 C in Kelvin)
 const float R_fixed = 10000.0; // R3110 pull-up resistor (ohms)
 const float tempTune = 0.25;   // Fine-tune offset (C)
-const bool SERIAL_OUTPUT = true;
 
 // ── Temperature thresholds ───────────────────────────────────────────────────
 const float TEMP_LOW = 30.0;  // Below → fans off
@@ -51,11 +48,7 @@ uint8_t pumpDuty = 20;
 uint8_t fanDuty = 0;
 float tC1 = 0.0;
 
-unsigned long lastPrintTime = 0;
-const unsigned long printInterval = 500; // ms
 unsigned long lastLogTime = 0;
-bool sdReady = false;
-File logFile;
 
 // ════════════════════════════════════════════════════════════════════════════
 // Timer setup
@@ -142,31 +135,18 @@ void setFanDuty(uint8_t percent) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// SD-card logging
+// Serial CSV logging
 // ════════════════════════════════════════════════════════════════════════════
-
-bool selectLogFilename(char *filename) {
-  for (unsigned long run = 1; run <= 99999UL; ++run) {
-    snprintf(filename, 13, "RUN%05lu.CSV", run);
-    if (!SD.exists(filename))
-      return true;
-  }
-  return false;
-}
 
 void logSample(unsigned long timestamp, float temperature, uint8_t fanPercent,
                uint8_t pumpPercent) {
-  if (!sdReady)
-    return;
-
-  logFile.print(timestamp);
-  logFile.print(',');
-  logFile.print(temperature, 2);
-  logFile.print(',');
-  logFile.print(fanPercent);
-  logFile.print(',');
-  logFile.println(pumpPercent);
-  logFile.flush();
+  Serial.print(timestamp);
+  Serial.print(',');
+  Serial.print(temperature, 2);
+  Serial.print(',');
+  Serial.print(fanPercent);
+  Serial.print(',');
+  Serial.println(pumpPercent);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -218,27 +198,7 @@ void setup() {
   // Apply initial duty cycles
   setFanDuty(fanDuty);
 
-  // ── Initialize the SD-card logger ─────────────────────────────────────
-  pinMode(SD_CS_PIN, OUTPUT);
-  if (!SD.begin(SD_CS_PIN)) {
-    Serial.println(F("SD card initialization failed; logging disabled."));
-  } else {
-    char filename[13];
-    if (selectLogFilename(filename))
-      logFile = SD.open(filename, FILE_WRITE);
-
-    if (!logFile) {
-      Serial.println(F("Could not create a new CSV; logging disabled."));
-    } else {
-      sdReady = true;
-      logFile.println(F("time_ms,coolant_temp_c,fan_duty_percent,pump_duty_percent"));
-      logFile.flush();
-      Serial.print(F("SD-card logging at 1 Hz to "));
-      Serial.println(filename);
-    }
-  }
-
-  Serial.println(F("Fan/pump controller ready."));
+  Serial.println(F("time_ms,coolant_temp_c,fan_duty_percent,pump_duty_percent"));
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -263,23 +223,10 @@ void loop() {
 
   setFanDuty(fanDuty);
 
-  // ── Append one SD-card sample per second ──────────────────────────────
+  // ── Send one serial CSV sample per second ──────────────────────────────
   unsigned long now = millis();
   if (now - lastLogTime >= LOG_INTERVAL) {
     lastLogTime = now;
     logSample(now, tC1, fanDuty, pumpDuty);
-  }
-
-  // ── Serial output every 500 ms ────────────────────────────────────────
-  if (now - lastPrintTime >= printInterval && SERIAL_OUTPUT) {
-    lastPrintTime = now;
-
-    Serial.print(F("Coolant Temp 3: "));
-    Serial.print(tC1);
-    Serial.print(F(" C  |  Fan: "));
-    Serial.print(fanDuty);
-    Serial.print(F("%  |  Pump: "));
-    Serial.print(pumpDuty);
-    Serial.println(F("%"));
   }
 }

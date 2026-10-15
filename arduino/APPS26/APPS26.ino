@@ -7,14 +7,23 @@
 
 int lp1 = A0;
 int lp2 = A1;
-int bs = 2;
+int bs = A2;
 int out = 3;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 void set_implausibility(bool plaus) { digitalWrite(out, plaus ? LOW : HIGH); }
 
-bool read_brake_switch() { return digitalRead(bs); }
+float read_brake_switch() {
+  float count = analogRead(bs);
+  float voltage = 5.0f * count / 1023.0f;
+
+  float psi = 557.39185 * voltage - 161.169;
+
+  // Serial.println(psi);
+
+  return psi;
+}
 
 float sensor_transfer_fcn(int rawVal, int sensorNum) {
   float voltage = 5.0f * rawVal / 1023.0f;
@@ -84,7 +93,7 @@ void loop() {
   prevMismatch = mismatchNow;
 
   // Brake switch with release debounce
-  bool rawBrake = read_brake_switch();
+  bool rawBrake = read_brake_switch() > 200;
   if (rawBrake) {
     brakeLatched = true;
     brakeReleaseTimer = presentTimer;
@@ -105,11 +114,11 @@ void loop() {
 
   bool implausibility = implausibilityLatched || !pedalPressed;
 
-  if (implausibility) {
-    Serial.println("implausuible");
-  } else {
-    Serial.println("plausable");
-  }
+  // if (implausibility) {
+  //   Serial.println("implausuible");
+  // } else {
+  //   Serial.println("plausable");
+  // }
   // Serial.println(implausibility);
   set_implausibility(implausibility);
 }
