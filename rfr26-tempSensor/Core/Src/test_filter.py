@@ -27,7 +27,9 @@ capture_c = source[
         "// use linear interperolation"
     )
 ]
-oc_mode = re.search(r"sConfigOC.OCMode = (\w+);", source)[1]
+oc_mode_match = re.search(r"sConfigOC.OCMode = (\w+);", source)
+assert oc_mode_match is not None
+oc_mode = oc_mode_match[1]
 expected_sos = butter(4, 5000, fs=45000, output="sos").astype(np.float32)
 
 # Extract the coefficients actually compiled into the firmware.
@@ -272,7 +274,9 @@ assert (
 assert re.search(r"#define HSE_VALUE\s+12000000U", config)
 assert re.search(r"#define HSE_VALUE\s+12000000U", system)
 assert "RCC_PLL_MUL6" in source and "RCC_SYSCLK_DIV1;" in source
-prescaler = int(re.search(r"hcan.Init.Prescaler = (\d+)", source)[1])
+prescaler_match = re.search(r"hcan.Init.Prescaler = (\d+)", source)
+assert prescaler_match is not None
+prescaler = int(prescaler_match[1])
 assert 36000000 / (prescaler * (1 + 13 + 4)) == 500000
 assert ioc["CAN.Prescaler"] == str(prescaler)
 assert ioc["RCC.HSE_VALUE"] == "12000000"
@@ -280,7 +284,9 @@ assert (
     ioc["TIM4.Period"] == "1599"
     and ioc["TIM4.Pulse-PWM Generation4 No Output"] == "800"
 )
-assert int(re.search(r"#define ADC_SAMPLE_RATE_HZ (\d+)U", source)[1]) == 45000
+sample_rate_match = re.search(r"#define ADC_SAMPLE_RATE_HZ (\d+)U", source)
+assert sample_rate_match is not None
+assert int(sample_rate_match[1]) == 45000
 assert 72000000 / (1599 + 1) == 45000
 assert (239.5 + 12.5) / 12000000 < 1 / 45000
 assert ioc["TIM4.OCMode_PWM_4"] == oc_mode == "TIM_OCMODE_PWM2"

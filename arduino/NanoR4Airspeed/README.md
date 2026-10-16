@@ -26,15 +26,15 @@ Use a bidirectional I2C level shifter between the 5 V sensor bus and Pi bus,
 with pull-ups appropriate to each side. Power the ASPD-4525 from 5 V and share
 ground. With power disconnected, wire:
 
-| Connection | Pi physical header pin / destination |
-| --- | --- |
-| Sensor 5V and level shifter HV | Pin 2 or 4 (5 V) |
-| Sensor GND and shifter GND | Pin 6 (GND) |
-| Shifter LV reference | Pin 1 (3.3 V) |
-| Shifter low-side SDA | Pin 3 (GPIO2 / SDA1) |
-| Shifter low-side SCL | Pin 5 (GPIO3 / SCL1) |
-| Sensor SDA | Shifter high-side SDA |
-| Sensor SCL | Shifter high-side SCL |
+| Connection                     | Pi physical header pin / destination |
+| ------------------------------ | ------------------------------------ |
+| Sensor 5V and level shifter HV | Pin 2 or 4 (5 V)                     |
+| Sensor GND and shifter GND     | Pin 6 (GND)                          |
+| Shifter LV reference           | Pin 1 (3.3 V)                        |
+| Shifter low-side SDA           | Pin 3 (GPIO2 / SDA1)                 |
+| Shifter low-side SCL           | Pin 5 (GPIO3 / SCL1)                 |
+| Sensor SDA                     | Shifter high-side SDA                |
+| Sensor SCL                     | Shifter high-side SCL                |
 
 Keep I2C wires short and use the default 100 kHz bus initially. Do not attach the
 Nano as another bus master. The sensor address defaults to `0x28`. The transaction

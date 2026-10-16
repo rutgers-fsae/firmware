@@ -491,7 +491,7 @@ class Checks(unittest.TestCase):
                 return len(data)
             return original_write(data)
 
-        serial.write = write_with_cleanup_timeout
+        serial.write = write_with_cleanup_timeout  # ty: ignore[invalid-assignment]
         instance = Worker(args, serial_factory=lambda *a, **kw: serial)
         instance.start()
         deadline = time.monotonic() + 1

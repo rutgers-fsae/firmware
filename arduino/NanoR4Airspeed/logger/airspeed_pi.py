@@ -12,13 +12,21 @@ import threading
 import time
 from pathlib import Path
 
-from airspeed_core import QUANTUM_PA, RunWriter, ZeroCalibration, calculate, stamp, utc, validate_rate
+from airspeed_core import (
+    QUANTUM_PA,
+    RunWriter,
+    ZeroCalibration,
+    calculate,
+    stamp,
+    utc,
+    validate_rate,
+)
 
 LOG = logging.getLogger(__name__)
 
 
 def read_sensor(bus, address):
-    from smbus2 import i2c_msg
+    from smbus2 import i2c_msg  # ty: ignore[unresolved-import]
 
     # Plain read: this sensor has no register address to write first.
     message = i2c_msg.read(address, 2)
@@ -47,14 +55,21 @@ def load_calibration(path, bus, address):
 
 def sample_row(raw, status, cal, density):
     pa, dp, speed, state = calculate(raw, status, cal, density)
-    row = dict(raw_counts=raw, sensor_status=status, pressure_pa=pa,
-               corrected_pressure_pa=dp, airspeed_m_s=speed,
-               airspeed_km_h=speed * 3.6 if speed is not None else None,
-               reading_state=state)
+    row = dict(
+        raw_counts=raw,
+        sensor_status=status,
+        pressure_pa=pa,
+        corrected_pressure_pa=dp,
+        airspeed_m_s=speed,
+        airspeed_km_h=speed * 3.6 if speed is not None else None,
+        reading_state=state,
+    )
     if cal:
-        row.update(zero_offset_pa=cal["zero_offset_pa"],
-                   zero_noise_band_pa=max(3 * cal["noise_std_pa"], 2 * QUANTUM_PA),
-                   calibration_id=cal["calibration_id"])
+        row.update(
+            zero_offset_pa=cal["zero_offset_pa"],
+            zero_noise_band_pa=max(3 * cal["noise_std_pa"], 2 * QUANTUM_PA),
+            calibration_id=cal["calibration_id"],
+        )
     return row
 
 
@@ -69,13 +84,20 @@ def poll_control(control, state):
         command = request.get("command")
         start_zero = command == "zero" and state["state"] != "zeroing"
         success = command == "status" or start_zero
-        response = dict(request_id=request.get("request_id"), success=success,
-                        airspeed=dict(state))
+        response = dict(
+            request_id=request.get("request_id"), success=success, airspeed=dict(state)
+        )
         if not success:
-            response["error"] = "Zero already in progress" if command == "zero" else "Unknown command"
+            response["error"] = (
+                "Zero already in progress" if command == "zero" else "Unknown command"
+            )
         if start_zero:
-            response["airspeed"] = dict(state="zeroing", samples=0, elapsed_s=0,
-                                        message="Keep both ports at equal pressure in still air")
+            response["airspeed"] = dict(
+                state="zeroing",
+                samples=0,
+                elapsed_s=0,
+                message="Keep both ports at equal pressure in still air",
+            )
         control.sendto(json.dumps(response).encode(), address)
         return start_zero
     except (ValueError, AttributeError, OSError):
@@ -84,12 +106,20 @@ def poll_control(control, state):
 
 
 def acquire(args, bus, stop, control=None):
-    cal = None if args.zero else load_calibration(args.calibration, args.bus, args.address)
+    cal = (
+        None
+        if args.zero
+        else load_calibration(args.calibration, args.bus, args.address)
+    )
     zero = ZeroCalibration() if args.zero else None
     writer = None if args.zero else RunWriter(args.output_dir, args.title, args.rate)
     previous_cal = cal
-    state = dict(state="ready" if cal else "needs_zero", samples=0, elapsed_s=0,
-                 message="Zero loaded" if cal else "Zero in still air before calculating speed")
+    state = dict(
+        state="ready" if cal else "needs_zero",
+        samples=0,
+        elapsed_s=0,
+        message="Zero loaded" if cal else "Zero in still air before calculating speed",
+    )
     period = 1 / args.rate
     started = deadline = last_sync = time.monotonic()
     skipped = sequence = failures = 0
@@ -101,8 +131,12 @@ def acquire(args, bus, stop, control=None):
                 previous_cal = cal
                 cal = None
                 zero = ZeroCalibration()
-                state.update(state="zeroing", samples=0, elapsed_s=0,
-                             message="Keep both ports at equal pressure in still air")
+                state.update(
+                    state="zeroing",
+                    samples=0,
+                    elapsed_s=0,
+                    message="Keep both ports at equal pressure in still air",
+                )
             if stop.wait(max(0, deadline - time.monotonic())):
                 break
             now = time.monotonic()
@@ -111,10 +145,16 @@ def acquire(args, bus, stop, control=None):
             deadline += (late + 1) * period
             sequence += 1
             received = utc()
-            row = dict(received_utc=received, sample_utc=received,
-                       device_sequence=sequence, device_elapsed_s=now - started,
-                       requested_rate_hz=args.rate, device_skipped_slots=skipped,
-                       missing_serial_samples=0, density_kg_m3=args.density)
+            row = dict(
+                received_utc=received,
+                sample_utc=received,
+                device_sequence=sequence,
+                device_elapsed_s=now - started,
+                requested_rate_hz=args.rate,
+                device_skipped_slots=skipped,
+                missing_serial_samples=0,
+                density_kg_m3=args.density,
+            )
             try:
                 raw, status = read_sensor(bus, args.address)
             except OSError as exc:
@@ -127,10 +167,16 @@ def acquire(args, bus, stop, control=None):
                 if zero:
                     try:
                         candidate = zero.add(raw, status, now)
-                        state.update(samples=len(zero.samples), elapsed_s=round(now - zero.started, 1))
+                        state.update(
+                            samples=len(zero.samples),
+                            elapsed_s=round(now - zero.started, 1),
+                        )
                         if candidate:
-                            candidate.update(i2c_bus=args.bus, i2c_address=args.address,
-                                             calibration_id="zero-calibration-" + stamp())
+                            candidate.update(
+                                i2c_bus=args.bus,
+                                i2c_address=args.address,
+                                calibration_id="zero-calibration-" + stamp(),
+                            )
                             args.calibration.parent.mkdir(parents=True, exist_ok=True)
                             temporary = args.calibration.with_suffix(".tmp")
                             with temporary.open("w") as target:
@@ -150,23 +196,35 @@ def acquire(args, bus, stop, control=None):
                         zero = None
                         cal = previous_cal
                         state.update(state="error", message=str(exc))
-                        LOG.warning("Zero failed; previous calibration retained: %s", exc)
+                        LOG.warning(
+                            "Zero failed; previous calibration retained: %s", exc
+                        )
                 row.update(sample_row(raw, status, cal, args.density))
                 row["source_line"] = f"I2C,{args.bus},{args.address:#x},{raw},{status}"
             if zero and now - zero.started > 45:
                 if args.zero:
-                    raise ValueError("Zero timed out; check sensor and keep both ports at equal pressure")
+                    raise ValueError(
+                        "Zero timed out; check sensor and keep both ports at equal pressure"
+                    )
                 zero = None
                 cal = previous_cal
-                state.update(state="error", message="Zero timed out; previous calibration retained")
+                state.update(
+                    state="error",
+                    message="Zero timed out; previous calibration retained",
+                )
             if writer:
                 writer.append(row)
                 if now - last_sync >= 5:
                     writer.file.flush()
                     os.fsync(writer.file.fileno())
                     last_sync = now
-                    LOG.info("Rows=%d, measured=%.1f Hz, skipped=%d, state=%s",
-                             writer.rows, writer.rows / (now - started), skipped, row["reading_state"])
+                    LOG.info(
+                        "Rows=%d, measured=%.1f Hz, skipped=%d, state=%s",
+                        writer.rows,
+                        writer.rows / (now - started),
+                        skipped,
+                        row["reading_state"],
+                    )
             if failures >= 3:
                 raise RuntimeError("Three consecutive I2C failures; check wiring/power")
         if zero:
@@ -186,23 +244,39 @@ def main(argv=None):
     parser.add_argument("--address", type=lambda s: int(s, 0), default=0x28)
     parser.add_argument("--rate", type=validate_rate, default=20)
     parser.add_argument("--density", type=float, default=1.225)
-    parser.add_argument("--output-dir", type=Path, default=Path("/var/lib/airspeed/logs"))
-    parser.add_argument("--calibration", type=Path, default=Path("/var/lib/airspeed/zero.json"))
+    parser.add_argument(
+        "--output-dir", type=Path, default=Path("/var/lib/airspeed/logs")
+    )
+    parser.add_argument(
+        "--calibration", type=Path, default=Path("/var/lib/airspeed/zero.json")
+    )
     parser.add_argument("--title", default="Pi airspeed")
-    parser.add_argument("--zero", action="store_true", help="Collect a still-air zero, save it, and exit")
-    parser.add_argument("--control-socket", type=Path, help="Local dashboard control socket (service only)")
+    parser.add_argument(
+        "--zero",
+        action="store_true",
+        help="Collect a still-air zero, save it, and exit",
+    )
+    parser.add_argument(
+        "--control-socket",
+        type=Path,
+        help="Local dashboard control socket (service only)",
+    )
     args = parser.parse_args(argv)
     if args.bus < 0 or not 0x08 <= args.address <= 0x77:
         parser.error("Use a nonnegative bus and a 7-bit I2C address in 0x08..0x77")
     if not math.isfinite(args.density) or args.density <= 0:
         parser.error("Density must be finite and positive")
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+    )
     stop = threading.Event()
-    previous = {sig: signal.signal(sig, lambda *_: stop.set())
-                for sig in (signal.SIGINT, signal.SIGTERM)}
+    previous = {
+        sig: signal.signal(sig, lambda *_: stop.set())
+        for sig in (signal.SIGINT, signal.SIGTERM)
+    }
     control = None
     try:
-        from smbus2 import SMBus
+        from smbus2 import SMBus  # ty: ignore[unresolved-import]
 
         args.output_dir.mkdir(parents=True, exist_ok=True)
         # Same directory for manual runs, calibration, and the service.
