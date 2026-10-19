@@ -3,7 +3,6 @@
 // v0.0.3: Added SD card CSV logging (CS on D10)
 // v0.0.4: Keep log file open for 10ms logging; flush every 50 rows to limit data loss on power cut
 #define MAX_IMPLAUSIBILITY_DURATION 100
-#define BRAKE_RELEASE_DEBOUNCE_MS 50
 
 int lp1 = A0;
 int lp2 = A1;
@@ -67,10 +66,8 @@ bool brakeLatched = false;
 bool prevBrakeSwitch = false;
 unsigned long brakeReleaseTimer = 0;
 
-// ── Loop ──────────────────────────────────────────────────────────────────────
-
 void loop() {
-  unsigned long presentTimer = millis();
+  // unsigned long presentTimer = millis();
 
   sensor1RawVal = analogRead(lp1);
   sensor2RawVal = analogRead(lp2);
@@ -78,47 +75,51 @@ void loop() {
   sensor1Percentage = sensor_transfer_fcn(sensor1RawVal, 1);
   sensor2Percentage = sensor_transfer_fcn(sensor2RawVal, 2);
 
-  bool pedalPressed = (sensor1Percentage > 10.0f && sensor2Percentage > 10.0f);
+  // bool pedalPressed = (sensor1Percentage > 20.0f && sensor2Percentage > 20.0f);
 
-  // Serial.print("APPS 1: ");  Serial.println(sensor1Percentage);
-  // Serial.print("APPS 2: ");  Serial.println(sensor2Percentage);
+  // run 1 - 
+  // bool pedalPressed = (sensor1Percentage > 20.0f);
 
-  // APPS mismatch fault
-  bool mismatchNow = (fabsf(sensor1Percentage - sensor2Percentage) > 10.0f);
-  if (mismatchNow && !prevMismatch) {
-    implausibilityStartTimer = presentTimer;
-  }
-  bool appsMismatchFault =
-      mismatchNow && ((presentTimer - implausibilityStartTimer) >= MAX_IMPLAUSIBILITY_DURATION);
-  prevMismatch = mismatchNow;
+  // run 2 - 
+    bool pedalPressed = (sensor2Percentage > 20.0f);
 
-  // Brake switch with release debounce
-  bool rawBrake = read_brake_switch() > 200;
-  if (rawBrake) {
-    brakeLatched = true;
-    brakeReleaseTimer = presentTimer;
-  } else if ((presentTimer - brakeReleaseTimer) >= BRAKE_RELEASE_DEBOUNCE_MS) {
-    brakeLatched = false;
-  }
-  prevBrakeSwitch = rawBrake;
 
-  bool brakeThrottleFault = (brakeLatched && pedalPressed);
-  bool activeFault = (appsMismatchFault || brakeThrottleFault);
+  // // Serial.print("APPS 1: ");  Serial.println(sensor1Percentage);
+  // // Serial.print("APPS 2: ");  Serial.println(sensor2Percentage);
 
-  if (activeFault) {
-    implausibilityLatched = true;
-  }
-  if (implausibilityLatched && !pedalPressed && !activeFault) {
-    implausibilityLatched = false;
-  }
-
-  bool implausibility = implausibilityLatched || !pedalPressed;
-
-  // if (implausibility) {
-  //   Serial.println("implausuible");
-  // } else {
-  //   Serial.println("plausable");
+  // // APPS mismatch fault
+  // bool mismatchNow = (fabsf(sensor1Percentage - sensor2Percentage) > 20.0f);
+  // if (mismatchNow && !prevMismatch) {
+  //   implausibilityStartTimer = presentTimer;
   // }
+  // bool appsMismatchFault =
+  //     mismatchNow && ((presentTimer - implausibilityStartTimer) >= MAX_IMPLAUSIBILITY_DURATION);
+  // prevMismatch = mismatchNow;
+
+  float brake = read_brake_switch();
+
+  // bool brakeThrottleFault = (brake > 200 && pedalPressed);
+  // bool activeFault = (appsMismatchFault || brakeThrottleFault);
+
+  // if (activeFault) {
+  //   implausibilityLatched = true;
+  // }
+  // if (implausibilityLatched && !pedalPressed && !activeFault) {
+  //   implausibilityLatched = false;
+  // }
+
+  // bool implausibility = implausibilityLatched || !pedalPressed;
+
+  // // if (implausibility) {
+  // //   Serial.println("implausuible");
+  // // } else {
+  // //   Serial.println("plausable");
+  // // }
   // Serial.println(implausibility);
-  set_implausibility(implausibility);
+
+  bool implausability = brake > 200;
+
+  Serial.println(implausability);
+
+  set_implausibility(implausability);
 }
