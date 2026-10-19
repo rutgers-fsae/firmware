@@ -77,12 +77,11 @@ void loop() {
 
   // bool pedalPressed = (sensor1Percentage > 20.0f && sensor2Percentage > 20.0f);
 
-  // run 1 - 
+  // run 1 -
   // bool pedalPressed = (sensor1Percentage > 20.0f);
 
-  // run 2 - 
-    bool pedalPressed = (sensor2Percentage > 20.0f);
-
+  // run 2 -
+  bool pedalPressed = (sensor2Percentage > 20.0f);
 
   // // Serial.print("APPS 1: ");  Serial.println(sensor1Percentage);
   // // Serial.print("APPS 2: ");  Serial.println(sensor2Percentage);
