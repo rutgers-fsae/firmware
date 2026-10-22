@@ -67,7 +67,7 @@ bool prevBrakeSwitch = false;
 unsigned long brakeReleaseTimer = 0;
 
 void loop() {
-  // unsigned long presentTimer = millis();
+  unsigned long presentTimer = millis();
 
   sensor1RawVal = analogRead(lp1);
   sensor2RawVal = analogRead(lp2);
@@ -75,50 +75,46 @@ void loop() {
   sensor1Percentage = sensor_transfer_fcn(sensor1RawVal, 1);
   sensor2Percentage = sensor_transfer_fcn(sensor2RawVal, 2);
 
-  // bool pedalPressed = (sensor1Percentage > 20.0f && sensor2Percentage > 20.0f);
+  bool pedalPressed = (sensor1Percentage > 20.0f && sensor2Percentage > 20.0f);
 
   // run 1 -
   // bool pedalPressed = (sensor1Percentage > 20.0f);
 
   // run 2 -
-  bool pedalPressed = (sensor2Percentage > 20.0f);
+  // bool pedalPressed = (sensor2Percentage > 20.0f);
 
-  // // Serial.print("APPS 1: ");  Serial.println(sensor1Percentage);
-  // // Serial.print("APPS 2: ");  Serial.println(sensor2Percentage);
+  // Serial.print("APPS 1: ");  Serial.println(sensor1Percentage);
+  // Serial.print("APPS 2: ");  Serial.println(sensor2Percentage);
 
-  // // APPS mismatch fault
-  // bool mismatchNow = (fabsf(sensor1Percentage - sensor2Percentage) > 20.0f);
-  // if (mismatchNow && !prevMismatch) {
-  //   implausibilityStartTimer = presentTimer;
-  // }
-  // bool appsMismatchFault =
-  //     mismatchNow && ((presentTimer - implausibilityStartTimer) >= MAX_IMPLAUSIBILITY_DURATION);
-  // prevMismatch = mismatchNow;
+  // APPS mismatch fault
+  bool mismatchNow = (fabsf(sensor1Percentage - sensor2Percentage) > 20.0f);
+  if (mismatchNow && !prevMismatch) {
+    implausibilityStartTimer = presentTimer;
+  }
+  bool appsMismatchFault =
+      mismatchNow && ((presentTimer - implausibilityStartTimer) >= MAX_IMPLAUSIBILITY_DURATION);
+  prevMismatch = mismatchNow;
 
   float brake = read_brake_switch();
 
-  // bool brakeThrottleFault = (brake > 200 && pedalPressed);
-  // bool activeFault = (appsMismatchFault || brakeThrottleFault);
+  bool brakeThrottleFault = (brake > 200 && pedalPressed);
+  bool activeFault = (appsMismatchFault || brakeThrottleFault);
 
-  // if (activeFault) {
-  //   implausibilityLatched = true;
-  // }
-  // if (implausibilityLatched && !pedalPressed && !activeFault) {
-  //   implausibilityLatched = false;
-  // }
+  if (activeFault) {
+    implausibilityLatched = true;
+  }
+  if (implausibilityLatched && !pedalPressed && !activeFault) {
+    implausibilityLatched = false;
+  }
 
-  // bool implausibility = implausibilityLatched || !pedalPressed;
+  bool implausibility = implausibilityLatched || !pedalPressed;
 
-  // // if (implausibility) {
-  // //   Serial.println("implausuible");
-  // // } else {
-  // //   Serial.println("plausable");
-  // // }
+  if (implausibility) {
+    Serial.println("implausuible");
+  } else {
+    Serial.println("plausable");
+  }
   // Serial.println(implausibility);
 
-  bool implausability = brake > 200;
-
-  Serial.println(implausability);
-
-  set_implausibility(implausability);
+  set_implausibility(implausibility);
 }
