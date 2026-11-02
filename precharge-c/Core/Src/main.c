@@ -475,7 +475,7 @@ void controllerQualify(Controller *self, uint32_t nowMS) {
   uint64_t lhs = (uint64_t)self->inverter.value * 100ULL;
   uint64_t rhs = (uint64_t)self->bms.value * self->config.thresholdPercent;
 
-  if (self->state == COMPLETE && inverter.value < 200) {
+  if (self->state == COMPLETE && self->inverter.value < 200) {
     self->state = PRECHARGING;
     return;
   }
