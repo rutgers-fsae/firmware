@@ -71,6 +71,14 @@ fn canInit() void {
     can.FB[0].FR1.raw = packedFilterId(protocol.bms);
     can.FB[0].FR2.raw = packedFilterId(protocol.inverter);
     can.FA1R.raw |= 1;
+
+    // Bank 1 receives the BMS discharge limit and inverter torque limit.
+    can.FM1R.raw |= 1 << 1;
+    can.FS1R.raw |= 1 << 1;
+    can.FFA1R.raw &= ~@as(u32, 1 << 1);
+    can.FB[1].FR1.raw = packedFilterId(protocol.bmsDCL.?);
+    can.FB[1].FR2.raw = packedFilterId(protocol.inverterTorque.?);
+    can.FA1R.raw |= 1 << 1;
     can.FMR.modify(.{ .FINIT = 0 });
 
     can.MCR.modify(.{ .INRQ = 0 });
@@ -150,6 +158,7 @@ pub fn main() !void {
 
     var now_ms: u32 = 0;
     var controller = logic.Controller.init(protocol, now_ms);
+    var break_speed_sent = false;
 
     while (true) {
         while (canReceive()) |frame| controller.ingest(frame, now_ms);
@@ -157,7 +166,13 @@ pub fn main() !void {
         _ = canTransmit(logic.infoFrame(controller));
 
         switch (controller.state) {
-            .complete => pins.enable.put(1),
+            .complete => {
+                if (!break_speed_sent) {
+                    if (logic.powerFrame(controller)) |frame|
+                        break_speed_sent = canTransmit(frame);
+                }
+                pins.enable.put(1);
+            },
             .fault_latched, .precharging => pins.enable.put(0),
             else => {},
         }

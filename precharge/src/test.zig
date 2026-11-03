@@ -46,6 +46,19 @@ test "fault codes and voltages map to the info CAN frame" {
     try std.testing.expectEqual(@as(u16, 450), std.mem.readInt(u16, frame.data[3..5], .big));
 }
 
+test "power frame writes the calculated break speed parameter" {
+    var controller = logic.Controller.init(testConfig(), 0);
+    try std.testing.expectEqual(@as(?logic.Frame, null), logic.powerFrame(controller));
+
+    controller.breakSpeed = 500;
+    const frame = logic.powerFrame(controller).?;
+    try std.testing.expectEqual(@as(u32, 0x0C1), frame.id);
+    try std.testing.expectEqual(@as(u4, 8), frame.dlc);
+    try std.testing.expectEqual(@as(u16, 127), std.mem.readInt(u16, frame.data[0..2], .little));
+    try std.testing.expectEqual(@as(u8, 1), frame.data[2]);
+    try std.testing.expectEqual(@as(i16, 500), std.mem.readInt(i16, frame.data[4..6], .little));
+}
+
 test "decode validates frame and payload" {
     const config = testConfig();
     try std.testing.expectEqual(@as(u32, 500), try logic.decodeVoltage(testFrame(0x100, 500), config.bms));

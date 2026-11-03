@@ -3,6 +3,8 @@ const std = @import("std");
 pub const FrameKind = enum { standard, extended };
 pub const Endian = enum { little, big };
 
+pub const PowerLimit: u8 = 80; // power limit in kw
+
 pub const Frame = struct {
     id: u32,
     kind: FrameKind,
@@ -22,11 +24,15 @@ pub const VoltageSpec = struct {
     cartOffset: ?u3 = null,
 };
 
+// need torque limit, discharge limit, pack voltage, power limit (constant), break speed
+
 pub const ProtocolConfig = struct {
     ready: bool,
     bitrate: u32,
     bms: VoltageSpec,
     inverter: VoltageSpec,
+    bmsDCL: ?VoltageSpec,
+    inverterTorque: ?VoltageSpec,
     min_voltage: u32 = 0,
     max_voltage: u32 = 450,
     threshold_percent: u8 = 90,
@@ -40,6 +46,8 @@ pub const base_config = ProtocolConfig{
     .bitrate = 500_000,
     .bms = .{ .id = 0x6B1, .kind = .standard, .offset = 2, .width = .two, .endian = .big, .multiplier = 1, .cartOffset = 5, .divisor = 10 },
     .inverter = .{ .id = 0x0A7, .kind = .standard, .offset = 0, .width = .two, .endian = .little, .divisor = 10 },
+    .bmsDCL = .{ .id = 0x6b3, .kind = .standard, .offset = 0, .width = .two, .endian = .big },
+    .inverterTorque = .{ .id = 0x0AC, .kind = .standard, .offset = 2, .width = .two, .endian = .little, .divisor = 10 },
 };
 
 pub const DecodeError = error{
@@ -106,6 +114,8 @@ pub const Fault = enum(u8) {
 };
 
 pub const info_can_id: u32 = 0x0D3;
+pub const power_can_id: u32 = 0x0C1;
+pub const break_speed_parameter: u16 = 127;
 
 pub fn infoFrame(controller: Controller) Frame {
     var frame = Frame{ .id = info_can_id, .kind = .standard, .dlc = 5, .data = @splat(0) };
@@ -121,6 +131,15 @@ pub fn infoFrame(controller: Controller) Frame {
     return frame;
 }
 
+pub fn powerFrame(controller: Controller) ?Frame {
+    const speed = controller.breakSpeed orelse return null;
+    var frame = Frame{ .id = power_can_id, .kind = .standard, .dlc = 8, .data = @splat(0) };
+    std.mem.writeInt(u16, frame.data[0..2], break_speed_parameter, .little);
+    frame.data[2] = 1;
+    std.mem.writeInt(i16, frame.data[4..6], @intCast(speed), .little);
+    return frame;
+}
+
 const Reading = struct { value: u32, timestamp_ms: u32 };
 
 pub const Controller = struct {
@@ -131,6 +150,9 @@ pub const Controller = struct {
     precharging_started_ms: ?u32 = null,
     bms: ?Reading = null,
     inverter: ?Reading = null,
+    dcl: ?Reading = null,
+    torqueLimit: ?Reading = null,
+    breakSpeed: ?u32 = null,
     consecutive_qualifying: u8 = 0,
 
     pub fn init(config: ProtocolConfig, now_ms: u32) Controller {
@@ -171,11 +193,26 @@ pub const Controller = struct {
             self.inverter = .{ .value = value, .timestamp_ms = now_ms };
             if (!self.plausible(value)) return self.latch(.implausible_voltage);
             self.qualify(now_ms);
+        } else if (self.config.bmsDCL != null and matches(frame, self.config.bmsDCL.?)) {
+            const value = decodeVoltage(frame, self.config.bmsDCL.?) catch {
+                self.latch(.malformed_frame);
+                return;
+            };
+            self.dcl = .{ .value = value, .timestamp_ms = now_ms };
+        } else if (self.config.inverterTorque != null and matches(frame, self.config.inverterTorque.?)) {
+            const value = decodeVoltage(frame, self.config.inverterTorque.?) catch {
+                self.latch(.malformed_frame);
+                return;
+            };
+            self.torqueLimit = .{ .value = value, .timestamp_ms = now_ms };
         }
     }
 
     pub fn tick(self: *Controller, now_ms: u32) void {
-        if (self.state == .complete or self.state == .fault_latched) return;
+        if (self.state == .fault_latched) return;
+        if (self.state == .complete) {
+            self.calculatePowerLimit(now_ms);
+        }
         if (elapsed(now_ms, self.started_ms) >= self.config.precharge_timeout_ms)
             return self.latch(.timeout);
 
@@ -193,6 +230,35 @@ pub const Controller = struct {
                 return self.latch(.stale_inverter);
         } else if (elapsed(now_ms, self.precharging_started_ms.?) >= self.config.freshness_timeout_ms) {
             return self.latch(.stale_inverter);
+        }
+    }
+
+    fn calculatePowerLimit(self: *Controller, now_ms: u32) void {
+        const bms = self.bms orelse {
+            self.consecutive_qualifying = 0;
+            return;
+        };
+
+        if (elapsed(now_ms, bms.timestamp_ms) >= self.config.freshness_timeout_ms) {
+            self.latch(.stale_bms);
+            return;
+        }
+        const dcl = self.dcl orelse return;
+        const torque = self.torqueLimit orelse return;
+        if (elapsed(now_ms, dcl.timestamp_ms) >= self.config.freshness_timeout_ms or
+            elapsed(now_ms, torque.timestamp_ms) >= self.config.freshness_timeout_ms)
+        {
+            self.breakSpeed = null;
+            return;
+        }
+
+        const packPower = dcl.value * bms.value / 1_000;
+        const powerAvailable = @min(packPower, @as(u32, PowerLimit));
+
+        if (torque.value > 0) {
+            self.breakSpeed = @min(@as(u32, powerAvailable) * 9549 / torque.value, 6_000);
+        } else {
+            self.breakSpeed = 6000;
         }
     }
 
