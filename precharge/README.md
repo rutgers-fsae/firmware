@@ -25,6 +25,14 @@ placeholder.
 
 ## Build and test
 
+The `0x0D3` status frame has six bytes. Bytes 0–4 contain the controller
+status and voltages; byte 5 contains CAN diagnostic flags latched until reset:
+bit 0 is receive FIFO overrun, bit 1 is a status frame not queued because all
+transmit mailboxes were busy, and bit 2 is an unsuccessful completed transmit.
+An unacknowledged frame may remain pending during automatic retransmission, so
+bit 1 can appear without bit 2. If transmission stops entirely, inspect the
+flags with a debugger after communication resumes or before resetting.
+
 Use the repository's pinned Zig compiler:
 
 ```sh

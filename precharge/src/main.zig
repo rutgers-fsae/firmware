@@ -97,7 +97,7 @@ fn canReceive() ?logic.Frame {
     std.mem.writeInt(u32, frame.data[0..4], fifo.RDLR.raw, .little);
     std.mem.writeInt(u32, frame.data[4..8], fifo.RDHR.raw, .little);
 
-    can.RFR[0].modify(.{ .RFOM = 1 });
+    can.RFR[0].raw = 1 << 5; // Release without clearing write-one-to-clear status flags.
     return frame;
 }
 
@@ -150,11 +150,24 @@ pub fn main() !void {
 
     var now_ms: u32 = 0;
     var controller = logic.Controller.init(protocol, now_ms);
+    var can_status: u8 = 0;
 
     while (true) {
+        if (peripherals.CAN.RFR[0].raw & (1 << 4) != 0) {
+            can_status |= 1;
+            peripherals.CAN.RFR[0].raw = 1 << 4;
+        }
+        const tx_status = peripherals.CAN.TSR.raw;
+        for (0..3) |i| {
+            const shift: u5 = @intCast(i * 8);
+            if (tx_status & (@as(u32, 1) << shift) != 0) {
+                if (tx_status & (@as(u32, 2) << shift) == 0) can_status |= 4;
+                peripherals.CAN.TSR.raw = @as(u32, 1) << shift;
+            }
+        }
         while (canReceive()) |frame| controller.ingest(frame, now_ms);
         controller.tick(now_ms);
-        _ = canTransmit(logic.infoFrame(controller));
+        if (!canTransmit(logic.infoFrame(controller, can_status))) can_status |= 2;
 
         switch (controller.state) {
             .complete => pins.enable.put(1),

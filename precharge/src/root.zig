@@ -107,8 +107,8 @@ pub const Fault = enum(u8) {
 
 pub const info_can_id: u32 = 0x0D3;
 
-pub fn infoFrame(controller: Controller) Frame {
-    var frame = Frame{ .id = info_can_id, .kind = .standard, .dlc = 5, .data = @splat(0) };
+pub fn infoFrame(controller: Controller, can_status: u8) Frame {
+    var frame = Frame{ .id = info_can_id, .kind = .standard, .dlc = 6, .data = @splat(0) };
     frame.data[0] = if (controller.fault) |fault| @intFromEnum(fault) else switch (controller.state) {
         .complete => 7,
         .precharging => 8,
@@ -118,6 +118,7 @@ pub fn infoFrame(controller: Controller) Frame {
         std.mem.writeInt(u16, frame.data[1..3], @intCast(reading.value), .big);
     if (controller.inverter) |reading|
         std.mem.writeInt(u16, frame.data[3..5], @intCast(reading.value), .big);
+    frame.data[5] = can_status;
     return frame;
 }
 

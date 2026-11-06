@@ -37,13 +37,14 @@ test "fault codes and voltages map to the info CAN frame" {
     controller.ingest(testFrame(0x100, 500), 0);
     controller.ingest(testFrame(0x101, 450), 1);
     controller.tick(1_000);
-    const frame = logic.infoFrame(controller);
+    const frame = logic.infoFrame(controller, 7);
     try std.testing.expectEqual(@as(u32, 0x0D3), frame.id);
     try std.testing.expectEqual(logic.FrameKind.standard, frame.kind);
-    try std.testing.expectEqual(@as(u4, 5), frame.dlc);
+    try std.testing.expectEqual(@as(u4, 6), frame.dlc);
     try std.testing.expectEqual(@as(u8, 1), frame.data[0]);
     try std.testing.expectEqual(@as(u16, 500), std.mem.readInt(u16, frame.data[1..3], .big));
     try std.testing.expectEqual(@as(u16, 450), std.mem.readInt(u16, frame.data[3..5], .big));
+    try std.testing.expectEqual(@as(u8, 7), frame.data[5]);
 }
 
 test "decode validates frame and payload" {
