@@ -18,7 +18,7 @@ systemctl stop airspeed-logger.service 2>/dev/null || true
 install -d /opt/airspeed/logger /opt/airspeed/deploy
 install -d -o airspeed -g airspeed /var/lib/airspeed /var/lib/airspeed/logs
 if [[ "$SOURCE_DIR" != /opt/airspeed ]]; then
-    install -m 0644 "$SOURCE_DIR"/logger/airspeed_{core,pi}.py /opt/airspeed/logger/
+    install -m 0644 "$SOURCE_DIR"/logger/airspeed_{core,pi,sensors}.py /opt/airspeed/logger/
     install -m 0644 "$SOURCE_DIR"/deploy/requirements-pi.txt /opt/airspeed/deploy/
 fi
 python3 -m venv /opt/airspeed/venv

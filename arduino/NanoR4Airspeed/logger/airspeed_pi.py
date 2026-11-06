@@ -1,4 +1,4 @@
-"""Headless ASPD-4525 acquisition on Linux I2C; no Arduino or Tk required."""
+"""Headless MS4525DO or Sensirion SDP811-500Pa acquisition on Linux I2C."""
 
 import argparse
 import fcntl
@@ -13,7 +13,6 @@ import time
 from pathlib import Path
 
 from airspeed_core import (
-    QUANTUM_PA,
     RunWriter,
     ZeroCalibration,
     calculate,
@@ -21,41 +20,39 @@ from airspeed_core import (
     utc,
     validate_rate,
 )
+from airspeed_sensors import MS4525DO, SDP811, SENSORS, PressureReader
 
 LOG = logging.getLogger(__name__)
 
 
-def read_sensor(bus, address):
-    from smbus2 import i2c_msg  # ty: ignore[unresolved-import]
-
-    # Plain read: this sensor has no register address to write first.
-    message = i2c_msg.read(address, 2)
-    bus.i2c_rdwr(message)
-    high, low = list(message)
-    return ((high & 0x3F) << 8) | low, high >> 6
-
-
-def load_calibration(path, bus, address):
+def load_calibration(path, bus, address, sensor=MS4525DO):
     if not path.exists():
         LOG.warning("No zero calibration at %s; recording pressure only", path)
         return None
     cal = json.loads(path.read_text())
     if cal.get("i2c_bus") != bus or cal.get("i2c_address") != address:
         raise ValueError("Calibration belongs to a different I2C bus/address")
+    # Untagged files belong to the original MS4525DO logger, never an SDP811.
+    if cal.get("sensor_model", MS4525DO.name) != sensor.name:
+        raise ValueError("Calibration belongs to a different sensor model; run --zero")
     for key in ("zero_offset_pa", "noise_std_pa"):
         value = cal[key]
         if not isinstance(value, (int, float)) or not math.isfinite(value):
             raise ValueError(f"Invalid calibration {key}")
-    if not 0 <= cal["noise_std_pa"] <= 10 or abs(cal["zero_offset_pa"]) > 6894.757:
+    if (
+        not 0 <= cal["noise_std_pa"] <= 10
+        or abs(cal["zero_offset_pa"]) > sensor.full_scale_pa
+    ):
         raise ValueError("Calibration is outside the sensor limits")
     if not isinstance(cal.get("calibration_id"), str) or not cal["calibration_id"]:
         raise ValueError("Calibration ID is missing")
     return cal
 
 
-def sample_row(raw, status, cal, density):
-    pa, dp, speed, state = calculate(raw, status, cal, density)
+def sample_row(raw, status, cal, density, sensor=MS4525DO):
+    pa, dp, speed, state = calculate(raw, status, cal, density, sensor)
     row = dict(
+        sensor_model=sensor.name,
         raw_counts=raw,
         sensor_status=status,
         pressure_pa=pa,
@@ -67,7 +64,7 @@ def sample_row(raw, status, cal, density):
     if cal:
         row.update(
             zero_offset_pa=cal["zero_offset_pa"],
-            zero_noise_band_pa=max(3 * cal["noise_std_pa"], 2 * QUANTUM_PA),
+            zero_noise_band_pa=max(3 * cal["noise_std_pa"], 2 * sensor.quantum_pa),
             calibration_id=cal["calibration_id"],
         )
     return row
@@ -105,13 +102,14 @@ def poll_control(control, state):
         return False
 
 
-def acquire(args, bus, stop, control=None):
+def acquire(args, reader, stop, control=None):
+    sensor = reader.model
     cal = (
         None
         if args.zero
-        else load_calibration(args.calibration, args.bus, args.address)
+        else load_calibration(args.calibration, args.bus, args.address, sensor)
     )
-    zero = ZeroCalibration() if args.zero else None
+    zero = ZeroCalibration(sensor=sensor) if args.zero else None
     writer = None if args.zero else RunWriter(args.output_dir, args.title, args.rate)
     previous_cal = cal
     state = dict(
@@ -130,7 +128,7 @@ def acquire(args, bus, stop, control=None):
             if control and poll_control(control, state):
                 previous_cal = cal
                 cal = None
-                zero = ZeroCalibration()
+                zero = ZeroCalibration(sensor=sensor)
                 state.update(
                     state="zeroing",
                     samples=0,
@@ -146,6 +144,7 @@ def acquire(args, bus, stop, control=None):
             sequence += 1
             received = utc()
             row = dict(
+                sensor_model=sensor.name,
                 received_utc=received,
                 sample_utc=received,
                 device_sequence=sequence,
@@ -156,10 +155,14 @@ def acquire(args, bus, stop, control=None):
                 density_kg_m3=args.density,
             )
             try:
-                raw, status = read_sensor(bus, args.address)
+                reading = reader.read()
+                raw, status = reading.raw, reading.status
             except OSError as exc:
                 failures += 1
-                row.update(reading_state="read_failed", source_line=str(exc))
+                row.update(
+                    reading_state=getattr(exc, "reading_state", "read_failed"),
+                    source_line=str(exc),
+                )
                 if failures == 1:
                     LOG.warning("I2C read failed: %s", exc)
             else:
@@ -175,6 +178,7 @@ def acquire(args, bus, stop, control=None):
                             candidate.update(
                                 i2c_bus=args.bus,
                                 i2c_address=args.address,
+                                sensor_model=sensor.name,
                                 calibration_id="zero-calibration-" + stamp(),
                             )
                             args.calibration.parent.mkdir(parents=True, exist_ok=True)
@@ -199,7 +203,7 @@ def acquire(args, bus, stop, control=None):
                         LOG.warning(
                             "Zero failed; previous calibration retained: %s", exc
                         )
-                row.update(sample_row(raw, status, cal, args.density))
+                row.update(sample_row(raw, status, cal, args.density, sensor))
                 row["source_line"] = f"I2C,{args.bus},{args.address:#x},{raw},{status}"
             if zero and now - zero.started > 45:
                 if args.zero:
@@ -240,15 +244,22 @@ def acquire(args, bus, stop, control=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--sensor", choices=SENSORS, default=MS4525DO.name)
     parser.add_argument("--bus", type=int, default=1)
-    parser.add_argument("--address", type=lambda s: int(s, 0), default=0x28)
+    parser.add_argument(
+        "--address",
+        type=lambda s: int(s, 0),
+        help="Default: 0x28 for MS4525DO, 0x26 for SDP811",
+    )
     parser.add_argument("--rate", type=validate_rate, default=20)
     parser.add_argument("--density", type=float, default=1.225)
     parser.add_argument(
         "--output-dir", type=Path, default=Path("/var/lib/airspeed/logs")
     )
     parser.add_argument(
-        "--calibration", type=Path, default=Path("/var/lib/airspeed/zero.json")
+        "--calibration",
+        type=Path,
+        help="Default: separate zero file for each sensor model",
     )
     parser.add_argument("--title", default="Pi airspeed")
     parser.add_argument(
@@ -262,6 +273,12 @@ def main(argv=None):
         help="Local dashboard control socket (service only)",
     )
     args = parser.parse_args(argv)
+    sensor = SENSORS[args.sensor]
+    if args.address is None:
+        args.address = sensor.address
+    if args.calibration is None:
+        name = "zero-sdp811.json" if sensor == SDP811 else "zero.json"
+        args.calibration = Path("/var/lib/airspeed") / name
     if args.bus < 0 or not 0x08 <= args.address <= 0x77:
         parser.error("Use a nonnegative bus and a 7-bit I2C address in 0x08..0x77")
     if not math.isfinite(args.density) or args.density <= 0:
@@ -284,13 +301,18 @@ def main(argv=None):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             with SMBus(args.bus) as bus:
                 stop.wait(0.1)  # Sensor startup allowance.
-                if args.control_socket and not args.zero:
-                    control = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-                    args.control_socket.unlink(missing_ok=True)
-                    control.bind(str(args.control_socket))
-                    os.chmod(args.control_socket, 0o660)
-                    control.setblocking(False)
-                acquire(args, bus, stop, control)
+                reader = PressureReader(bus, args.address, sensor)
+                try:
+                    reader.start()
+                    if args.control_socket and not args.zero:
+                        control = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+                        args.control_socket.unlink(missing_ok=True)
+                        control.bind(str(args.control_socket))
+                        os.chmod(args.control_socket, 0o660)
+                        control.setblocking(False)
+                    acquire(args, reader, stop, control)
+                finally:
+                    reader.stop()
         return 0
     except (OSError, ValueError, KeyError, TypeError, RuntimeError, ImportError):
         LOG.exception("Airspeed logger stopped")
