@@ -25,6 +25,11 @@ placeholder.
 
 ## Build and test
 
+The standard `0x0D3` info frame has seven bytes: byte 0 is the status or
+fault, bytes 1–2 and 3–4 are BMS and inverter voltages, and bytes 5–6 are
+the calculated power limit in whole kW. Multi-byte values are big-endian.
+The power limit is `0xFFFF` when a current calculation is unavailable.
+
 Use the repository's pinned Zig compiler:
 
 ```sh

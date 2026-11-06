@@ -3,7 +3,7 @@ const std = @import("std");
 pub const FrameKind = enum { standard, extended };
 pub const Endian = enum { little, big };
 
-pub const PowerLimit: u8 = 80; // power limit in kw
+pub const PowerLimit: u8 = 5; // power limit in kw
 
 pub const Frame = struct {
     id: u32,
@@ -118,7 +118,7 @@ pub const power_can_id: u32 = 0x0C1;
 pub const break_speed_parameter: u16 = 127;
 
 pub fn infoFrame(controller: Controller) Frame {
-    var frame = Frame{ .id = info_can_id, .kind = .standard, .dlc = 5, .data = @splat(0) };
+    var frame = Frame{ .id = info_can_id, .kind = .standard, .dlc = 7, .data = @splat(0) };
     frame.data[0] = if (controller.fault) |fault| @intFromEnum(fault) else switch (controller.state) {
         .complete => 7,
         .precharging => 8,
@@ -128,6 +128,7 @@ pub fn infoFrame(controller: Controller) Frame {
         std.mem.writeInt(u16, frame.data[1..3], @intCast(reading.value), .big);
     if (controller.inverter) |reading|
         std.mem.writeInt(u16, frame.data[3..5], @intCast(reading.value), .big);
+    std.mem.writeInt(u16, frame.data[5..7], if (controller.state == .complete and controller.fault == null) controller.powerAvailable orelse 0xFFFF else 0xFFFF, .big);
     return frame;
 }
 
@@ -153,6 +154,7 @@ pub const Controller = struct {
     dcl: ?Reading = null,
     torqueLimit: ?Reading = null,
     breakSpeed: ?u32 = null,
+    powerAvailable: ?u16 = null,
     consecutive_qualifying: u8 = 0,
 
     pub fn init(config: ProtocolConfig, now_ms: u32) Controller {
@@ -234,6 +236,7 @@ pub const Controller = struct {
     }
 
     fn calculatePowerLimit(self: *Controller, now_ms: u32) void {
+        self.powerAvailable = null;
         const bms = self.bms orelse {
             self.consecutive_qualifying = 0;
             return;
@@ -254,6 +257,7 @@ pub const Controller = struct {
 
         const packPower = dcl.value * bms.value / 1_000;
         const powerAvailable = @min(packPower, @as(u32, PowerLimit));
+        self.powerAvailable = @intCast(powerAvailable);
 
         if (torque.value > 0) {
             self.breakSpeed = @min(@as(u32, powerAvailable) * 9549 / torque.value, 6_000);

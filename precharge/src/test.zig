@@ -40,10 +40,28 @@ test "fault codes and voltages map to the info CAN frame" {
     const frame = logic.infoFrame(controller);
     try std.testing.expectEqual(@as(u32, 0x0D3), frame.id);
     try std.testing.expectEqual(logic.FrameKind.standard, frame.kind);
-    try std.testing.expectEqual(@as(u4, 5), frame.dlc);
+    try std.testing.expectEqual(@as(u4, 7), frame.dlc);
     try std.testing.expectEqual(@as(u8, 1), frame.data[0]);
     try std.testing.expectEqual(@as(u16, 500), std.mem.readInt(u16, frame.data[1..3], .big));
     try std.testing.expectEqual(@as(u16, 450), std.mem.readInt(u16, frame.data[3..5], .big));
+    try std.testing.expectEqual(@as(u16, 0xFFFF), std.mem.readInt(u16, frame.data[5..7], .big));
+}
+
+test "info frame reports calculated power and marks stale data unavailable" {
+    var config = testConfig();
+    config.bmsDCL = .{ .id = 0x102, .kind = .standard, .offset = 1, .width = .two, .endian = .big };
+    config.inverterTorque = .{ .id = 0x103, .kind = .standard, .offset = 1, .width = .two, .endian = .big };
+    var controller = logic.Controller.init(config, 0);
+    controller.ingest(testFrame(0x100, 500), 0);
+    controller.ingest(testFrame(0x102, 4), 0);
+    controller.ingest(testFrame(0x103, 100), 0);
+    for (0..3) |_| controller.ingest(testFrame(0x101, 450), 0);
+    controller.tick(1);
+    try std.testing.expectEqual(@as(u16, 2), std.mem.readInt(u16, logic.infoFrame(controller).data[5..7], .big));
+    controller.ingest(testFrame(0x100, 500), 999);
+    controller.ingest(testFrame(0x101, 450), 999);
+    controller.tick(1000);
+    try std.testing.expectEqual(@as(u16, 0xFFFF), std.mem.readInt(u16, logic.infoFrame(controller).data[5..7], .big));
 }
 
 test "power frame writes the calculated break speed parameter" {
