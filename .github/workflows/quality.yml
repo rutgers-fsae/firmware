@@ -1,0 +1,40 @@
+name: Code quality
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      HUSKY: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.10.4"
+          enable-cache: true
+          cache-dependency-glob: python/uv.lock
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.0-dev.1257+67b05e521
+      # The CSV integration test imports the backend from this submodule.
+      - run: git submodule update --init daq-website
+      - run: npm ci
+      - run: uv sync --locked --project python
+      - run: npm run test:quality
+      - run: npm run check

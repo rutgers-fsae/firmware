@@ -1,6 +1,5 @@
 import numpy as np
-from scipy.signal import iirnotch, cheby2, tf2sos
-from scipy.signal import tf2sos
+from scipy.signal import cheby2, iirnotch, tf2sos
 
 fs = 48000
 
@@ -9,7 +8,7 @@ b_n, a_n = iirnotch(20000, Q=30, fs=fs)
 sos_notch = tf2sos(b_n, a_n)
 
 # --- Chebyshev II lowpass ---
-sos_lp = cheby2(6, 60, 19000, btype='low', fs=fs, output='sos')
+sos_lp = cheby2(6, 60, 19000, btype="low", fs=fs, output="sos")
 
 # --- Combine ---
 sos = np.vstack([sos_notch, sos_lp])

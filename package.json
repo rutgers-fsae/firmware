@@ -1,0 +1,18 @@
+{
+  "name": "rfr-firmware-quality",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare": "husky",
+    "check": "node scripts/quality.mjs check",
+    "format": "node scripts/quality.mjs format",
+    "test:quality": "node scripts/quality.mjs test"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.11.0",
+    "globals": "17.4.0",
+    "husky": "9.1.7",
+    "prettier": "3.8.3"
+  }
+}

@@ -1,10 +1,11 @@
-from dash import Dash, Input, Output, State, ctx, dcc, html, no_update, dash_table
-from datetime import datetime
 import glob
 import os
+from datetime import datetime
+
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from dash import Dash, Input, Output, State, ctx, dash_table, dcc, html, no_update
 from plotly.subplots import make_subplots
 
 
@@ -12,19 +13,19 @@ def find_latest_csv(pattern: str) -> str | None:
     matches = glob.glob(pattern, recursive=True)
     if not matches:
         return None
-    return max(matches, key=os.path.getmtime)
+    return max(matches, key=lambda path: os.path.getmtime(path))
 
 
 def list_csv_files(pattern: str) -> list[str]:
     matches = glob.glob(pattern, recursive=True)
-    return sorted(matches, key=os.path.getmtime)
+    return sorted(matches, key=lambda path: os.path.getmtime(path))
 
 
 def list_csv_files_multi(patterns: list[str]) -> list[str]:
     merged: set[str] = set()
     for pattern in patterns:
         merged.update(list_csv_files(pattern))
-    return sorted(merged, key=os.path.getmtime)
+    return sorted(merged, key=lambda path: os.path.getmtime(path))
 
 
 def format_csv_label(path: str) -> str:
@@ -158,7 +159,9 @@ else:
     if all_channels:
         temp_status_text = f"Using temperature log: {os.path.basename(temp_log_path)}"
     else:
-        temp_status_text = f"Temperature log has no channel data: {os.path.basename(temp_log_path)}"
+        temp_status_text = (
+            f"Temperature log has no channel data: {os.path.basename(temp_log_path)}"
+        )
 
 daq_log_files = list_csv_files_multi(DAQ_LOG_PATTERNS)
 daq_log_options = make_file_options(daq_log_files)
@@ -202,7 +205,13 @@ else:
 
 
 def reload_temp_data(path: str):
-    global df, all_channels, default_channels, default_table_channel, temp_log_path, temp_status_text
+    global \
+        df, \
+        all_channels, \
+        default_channels, \
+        default_table_channel, \
+        temp_log_path, \
+        temp_status_text
 
     next_df = load_log_data(path)
     next_channels = sorted(next_df["channel"].unique())
@@ -215,7 +224,9 @@ def reload_temp_data(path: str):
     if all_channels:
         temp_status_text = f"Using temperature log: {os.path.basename(path)}"
     else:
-        temp_status_text = f"Temperature log has no channel data: {os.path.basename(path)}"
+        temp_status_text = (
+            f"Temperature log has no channel data: {os.path.basename(path)}"
+        )
 
 
 def reload_daq_data(path: str | None):
@@ -274,14 +285,18 @@ def make_figure(frame: pd.DataFrame, y_col: str, title: str, y_label: str):
         color="channel",
         title=title,
         labels={"timestamp": "Time (s)", y_col: y_label, "channel": "Channel"},
-        markers=True
+        markers=True,
     )
     fig.update_layout(
         template="plotly_dark",
         paper_bgcolor="#0f172a",
         plot_bgcolor="#111827",
         font={"color": "#e5e7eb"},
-        legend={"bgcolor": "rgba(17,24,39,0.7)", "bordercolor": "#334155", "borderwidth": 1},
+        legend={
+            "bgcolor": "rgba(17,24,39,0.7)",
+            "bordercolor": "#334155",
+            "borderwidth": 1,
+        },
     )
     return fig
 
@@ -341,7 +356,12 @@ def make_fault_figure(
             secondary_y=False,
         )
 
-    if show_motor_overlay and motor_frame is not None and not motor_frame.empty and "motor_torque" in motor_frame.columns:
+    if (
+        show_motor_overlay
+        and motor_frame is not None
+        and not motor_frame.empty
+        and "motor_torque" in motor_frame.columns
+    ):
         motor_plot = motor_frame.dropna(subset=["timestamp", "motor_torque"])
         fig.add_trace(
             go.Scatter(
@@ -360,7 +380,11 @@ def make_fault_figure(
         paper_bgcolor="#0f172a",
         plot_bgcolor="#111827",
         font={"color": "#e5e7eb"},
-        legend={"bgcolor": "rgba(17,24,39,0.7)", "bordercolor": "#334155", "borderwidth": 1},
+        legend={
+            "bgcolor": "rgba(17,24,39,0.7)",
+            "bordercolor": "#334155",
+            "borderwidth": 1,
+        },
     )
     fig.update_xaxes(title_text="Time (s)")
     fig.update_yaxes(title_text="Fault / High / Low", secondary_y=False)
@@ -398,8 +422,12 @@ def make_inv_figure(frame: pd.DataFrame):
 def make_inv_table_rows(frame: pd.DataFrame) -> list[dict]:
     table_df = frame[["timestamp", "dlc", "inv_byte0"]].copy()
     table_df["timestamp"] = table_df["timestamp"].round(3)
-    table_df["dlc"] = pd.to_numeric(table_df["dlc"], errors="coerce").round(0).astype("Int64")
-    table_df["inv_byte0"] = pd.to_numeric(table_df["inv_byte0"], errors="coerce").round(0).astype("Int64")
+    table_df["dlc"] = (
+        pd.to_numeric(table_df["dlc"], errors="coerce").round(0).astype("Int64")
+    )
+    table_df["inv_byte0"] = (
+        pd.to_numeric(table_df["inv_byte0"], errors="coerce").round(0).astype("Int64")
+    )
     return table_df.to_dict("records")
 
 
@@ -447,9 +475,16 @@ def make_avg_temp_figure(frame: pd.DataFrame):
 def make_motor_table_rows(frame: pd.DataFrame) -> list[dict]:
     table_df = frame[["timestamp", "dlc", "motor_torque"]].copy()
     table_df["timestamp"] = table_df["timestamp"].round(3)
-    table_df["dlc"] = pd.to_numeric(table_df["dlc"], errors="coerce").round(0).astype("Int64")
-    table_df["motor_torque"] = pd.to_numeric(table_df["motor_torque"], errors="coerce").round(0).astype("Int64")
+    table_df["dlc"] = (
+        pd.to_numeric(table_df["dlc"], errors="coerce").round(0).astype("Int64")
+    )
+    table_df["motor_torque"] = (
+        pd.to_numeric(table_df["motor_torque"], errors="coerce")
+        .round(0)
+        .astype("Int64")
+    )
     return table_df.to_dict("records")
+
 
 initial_df = df[df["channel"].isin(default_channels)]
 initial_table_df = df[df["channel"] == default_table_channel]
@@ -501,7 +536,11 @@ app.layout = html.Div(
             style={"maxWidth": "720px", "marginBottom": "0.5rem"},
             className="dark-dropdown",
         ),
-        html.Div(temp_status_text, id="temp-status", style={"marginBottom": "0.4rem", "color": "#cbd5e1"}),
+        html.Div(
+            temp_status_text,
+            id="temp-status",
+            style={"marginBottom": "0.4rem", "color": "#cbd5e1"},
+        ),
         dcc.Dropdown(
             id="channel-select",
             options=[{"label": channel, "value": channel} for channel in all_channels],
@@ -558,7 +597,12 @@ app.layout = html.Div(
             data=make_table_rows(initial_table_df),
             columns=[
                 {"name": "Channel", "id": "channel"},
-                {"name": "Temp (c)", "id": "temp", "type": "numeric", "format": {"specifier": ".3f"}},
+                {
+                    "name": "Temp (c)",
+                    "id": "temp",
+                    "type": "numeric",
+                    "format": {"specifier": ".3f"},
+                },
                 {
                     "name": "Time Recorded (since start)",
                     "id": "timestamp",
@@ -624,7 +668,11 @@ app.layout = html.Div(
             style={"maxWidth": "720px", "marginBottom": "0.5rem"},
             className="dark-dropdown",
         ),
-        html.Div(daq_status_text, id="daq-status", style={"marginBottom": "0.4rem", "color": "#cbd5e1"}),
+        html.Div(
+            daq_status_text,
+            id="daq-status",
+            style={"marginBottom": "0.4rem", "color": "#cbd5e1"},
+        ),
         dcc.Graph(id="daq-voltage-graph", figure=daq_fig),
         dash_table.DataTable(
             id="daq-table",
@@ -705,7 +753,11 @@ app.layout = html.Div(
             value=["show"],
             style={"marginBottom": "0.4rem"},
         ),
-        html.Div(fault_status_text, id="fault-status", style={"marginBottom": "0.4rem", "color": "#cbd5e1"}),
+        html.Div(
+            fault_status_text,
+            id="fault-status",
+            style={"marginBottom": "0.4rem", "color": "#cbd5e1"},
+        ),
         dcc.Graph(id="fault-graph", figure=fault_fig),
         dash_table.DataTable(
             id="fault-table",
@@ -780,7 +832,11 @@ app.layout = html.Div(
             style={"maxWidth": "720px", "marginBottom": "0.5rem"},
             className="dark-dropdown",
         ),
-        html.Div(motor_status_text, id="motor-status", style={"marginBottom": "0.4rem", "color": "#cbd5e1"}),
+        html.Div(
+            motor_status_text,
+            id="motor-status",
+            style={"marginBottom": "0.4rem", "color": "#cbd5e1"},
+        ),
         html.Div(
             [
                 html.Div(
@@ -874,7 +930,11 @@ app.layout = html.Div(
             style={"maxWidth": "720px", "marginBottom": "0.5rem"},
             className="dark-dropdown",
         ),
-        html.Div(inv_status_text, id="inv-status", style={"marginBottom": "0.4rem", "color": "#cbd5e1"}),
+        html.Div(
+            inv_status_text,
+            id="inv-status",
+            style={"marginBottom": "0.4rem", "color": "#cbd5e1"},
+        ),
         dcc.Graph(id="inv-graph", figure=inv_fig),
         dash_table.DataTable(
             id="inv-table",
@@ -1017,7 +1077,13 @@ def switch_temperature_log(selected_temp_log):
     reload_temp_data(selected_temp_log)
     channel_options = [{"label": channel, "value": channel} for channel in all_channels]
     table_options = [{"label": channel, "value": channel} for channel in all_channels]
-    return channel_options, default_channels, table_options, default_table_channel, temp_status_text
+    return (
+        channel_options,
+        default_channels,
+        table_options,
+        default_table_channel,
+        temp_status_text,
+    )
 
 
 @app.callback(
@@ -1028,7 +1094,11 @@ def switch_temperature_log(selected_temp_log):
 )
 def switch_daq_log(selected_daq_log):
     if selected_daq_log is not None and not os.path.exists(selected_daq_log):
-        return "Selected DAQ log file no longer exists", make_daq_figure(pd.DataFrame(columns=["timestamp", "voltage"])), []
+        return (
+            "Selected DAQ log file no longer exists",
+            make_daq_figure(pd.DataFrame(columns=["timestamp", "voltage"])),
+            [],
+        )
 
     reload_daq_data(selected_daq_log)
     return daq_status_text, make_daq_figure(daq_df), make_daq_table_rows(daq_df)
@@ -1097,7 +1167,9 @@ def switch_motor_log(selected_motor_log, overlay_values):
     if selected_motor_log is not None and not os.path.exists(selected_motor_log):
         return (
             "Selected motor log file no longer exists",
-            make_motor_figure(pd.DataFrame(columns=["timestamp", "dlc", "motor_torque"])),
+            make_motor_figure(
+                pd.DataFrame(columns=["timestamp", "dlc", "motor_torque"])
+            ),
             [],
             make_fault_figure(
                 fault_df,
@@ -1236,6 +1308,7 @@ def refresh_latest_logs(_n_clicks, overlay_values):
         make_motor_table_rows(motor_df),
         make_avg_temp_figure(fault_df),
     )
+
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -5,15 +5,14 @@ from __future__ import annotations
 
 import argparse
 import csv
-from dataclasses import dataclass
 import os
-from pathlib import Path
 import sys
 import tempfile
+from dataclasses import dataclass
+from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import pandas as pd
-
 
 DEFAULT_TIMEZONE = "America/New_York"
 DEFAULT_TOLERANCE_SECONDS = 0.2
@@ -152,7 +151,7 @@ def read_motec(path: Path, timezone: ZoneInfo) -> MotecData:
     return MotecData(rows[:header_index], columns, units, frame, log_start)
 
 
-def _parse_vectornav_time(value: object, timezone: ZoneInfo) -> pd.Timestamp:
+def _parse_vectornav_time(value: str, timezone: ZoneInfo) -> pd.Timestamp:
     try:
         parsed = pd.Timestamp(value)
         if pd.isna(parsed):
@@ -355,8 +354,12 @@ def main(argv: list[str] | None = None) -> int:
     unmatched = summary.output_rows - summary.matched_rows
     percentage = 100 * summary.matched_rows / summary.output_rows
     print(f"Wrote {args.output}")
-    print(f"MoTeC range:    {summary.standard_start.isoformat()} to {summary.standard_end.isoformat()}")
-    print(f"VectorNav range: {summary.vectornav_start.isoformat()} to {summary.vectornav_end.isoformat()}")
+    print(
+        f"MoTeC range:    {summary.standard_start.isoformat()} to {summary.standard_end.isoformat()}"
+    )
+    print(
+        f"VectorNav range: {summary.vectornav_start.isoformat()} to {summary.vectornav_end.isoformat()}"
+    )
     print(
         f"Rows: {summary.output_rows:,}; matched: {summary.matched_rows:,} "
         f"({percentage:.1f}%); unmatched: {unmatched:,}"

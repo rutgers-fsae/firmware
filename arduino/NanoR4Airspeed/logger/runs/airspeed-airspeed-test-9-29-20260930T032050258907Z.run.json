@@ -1,0 +1,8 @@
+{
+  "title": "Airspeed test 9/29",
+  "started_utc": "2026-09-30T03:20:50.259+00:00",
+  "requested_rate_hz": 100,
+  "csv": "airspeed-airspeed-test-9-29-20260930T032050258907Z.csv",
+  "ended_utc": "2026-09-30T03:30:18.278+00:00",
+  "rows": 56802
+}

@@ -7,3 +7,6 @@
 [submodule "vectorNav"]
 	path = vectorNav
 	url = https://github.com/rutgers-fsae/vectorNav
+[submodule "opl-car-generator"]
+	path = opl-car-generator
+	url = https://github.com/rutgers-fsae/opl-car-generator

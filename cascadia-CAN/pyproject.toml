@@ -1,0 +1,9 @@
+[project]
+name = "cascadia-can"
+version = "0.1.0"
+description = "Vim-keybinding TUI for PM100DX EEPROM over CANdapter"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "pyserial>=3.5",
+]

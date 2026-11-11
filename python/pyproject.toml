@@ -16,3 +16,14 @@ dependencies = [
     "rich>=15.0.0",
     "scipy>=1.17.1",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff==0.15.6",
+    "ty==0.0.23",
+    "clang-format==18.1.8",
+    "cppcheck==1.5.1",
+]
+
+[tool.ty.environment]
+extra-paths = ["../daq-website/backend", "..", "../arduino/NanoR4Airspeed/logger"]

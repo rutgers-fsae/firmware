@@ -1,10 +1,12 @@
 # Setup Guide for STM32
 
 ## Initial setup
+
 ### 1. Cloning the repository
+
 <details>
   <summary>With git</summary>
-    You want to start by cloning this repository locally.You can use the following command: 
+    You want to start by cloning this repository locally.You can use the following command:
 
     ```sh
     git clone https://github.com/jeevanshah07/Rutgers-Formula-Racing.git
@@ -19,17 +21,19 @@
 </details>
 
 ### 2. Downloading software
+
 > [!IMPORTANT]
 > **This guide uses STM32CubeIDE v2.1.0 and STM32CubeMX**
 
 Download [STM32CubeMX](https://www.st.com/en/development-tools/stm32cubemx.html#section-get-software-table) and [STM32CubeIDE](https://www.st.com/en/development-tools/stm32cubeide.html) from [www.st.com](www.st.come). You may need to make an account to download them.
 
 ## Setting up the project
+
 1. Once you've downloaded the necessary software and have a local copy of the repository on your computer, open up STM32CubeMX and go to **File -> Load Project**. Navigate to wherever your local copy of the repository is on your computer and open up the file `Rutgers-Formula-Racing/rfr26-tempSensor/rfr26-tempSensor.ioc`. This will automatically load the STM with the necessary pin and clock setup. You can check that your STM board looks like this:
-![stm32 image](images/image.png)
-and the clock configuration should be:
-![stm32 clock image](images/image-1.png)
-to finish, hit the bright blue 'Generate Code' button in the top right.
+   ![stm32 image](images/image.png)
+   and the clock configuration should be:
+   ![stm32 clock image](images/image-1.png)
+   to finish, hit the bright blue 'Generate Code' button in the top right.
 2. After hitting the generate code button it should automatically open the IDE, if not, open it.
 3. Once you have the project open in the IDE, open `Core/src/main.c` in the file tree and paste in the content of `Rutgers-Formula-Racing/rfr26-tempSensor/Core/src/main.c` into the IDE. You can go to **Project -> Build Project** to build the project and ensure that it compiles without error.
 
@@ -37,27 +41,31 @@ to finish, hit the bright blue 'Generate Code' button in the top right.
 Before building, assign this board the same unique node ID (1–7) used for its bootloader. Command-line Debug and Release builds require it explicitly, for example `make -C Debug NODE=1` or `make -C Release NODE=1`; in STM32CubeIDE, add `BOOTLOADER_NODE_ID=1` under **C/C++ Build -> Settings -> MCU/MPU GCC Compiler -> Preprocessor** and replace `1` with the assigned board ID. Builds intentionally fail when this definition is missing so multiple boards cannot silently share node 1.
 
 1. We need to exclude `syscalls.c` from the build. In the file tree in the IDE, right click on `Core/src/syscalls.c` and click the properties option. Go to **C/C++ build** and check the 'Exclude Resource from Build' box. Click 'Apply and Close' to finish.
-![exclude syscalls](images/image-2.png)
+   ![exclude syscalls](images/image-2.png)
 2. Next, click the small dropdown next to the bug icon and open **Debug Configurations...**
-![debug config](images/image-3.png)
-then go to the **Debugger** tab and copy these settings:
-![debugger tab](images/image-4.png)
-In the **Startup** tab you want to add the following commands:
+   ![debug config](images/image-3.png)
+   then go to the **Debugger** tab and copy these settings:
+   ![debugger tab](images/image-4.png)
+   In the **Startup** tab you want to add the following commands:
+
 ```
 monitor reset halt
 monitor arm semihosting enable
 ```
-![startup tab](images/image-5.png)
-3. Finally, right click on the project in the file explorer and open up properties
+
+![startup tab](images/image-5.png) 3. Finally, right click on the project in the file explorer and open up properties
 ![proj properties](images/image-6.png)
 then go to **C/C++ Build -> Settings -> MCU/MPU GCC Linker -> Miscellaneous** and add the following into **Other Flags**
+
 ```
 --specs=rdimon.specs -lc -lrdimon
 ```
+
 ![flags](images/image-7.png)
 and click apply and close.
 
 ## Viewing serial output
+
 Once you are done with configuration, you should click the debug icon
 
 ![debug icon](images/image-8.png)

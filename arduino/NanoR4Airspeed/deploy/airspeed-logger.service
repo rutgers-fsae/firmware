@@ -1,0 +1,32 @@
+[Unit]
+Description=RFR Raspberry Pi airspeed logger
+After=local-fs.target
+
+[Service]
+Type=simple
+User=airspeed
+Group=vectornav
+SupplementaryGroups=i2c
+WorkingDirectory=/opt/airspeed
+Environment=AIRSPEED_BUS=1
+Environment=AIRSPEED_ADDRESS=0x28
+Environment=AIRSPEED_RATE=20
+Environment=AIRSPEED_DENSITY=1.225
+Environment=AIRSPEED_OUTPUT_DIR=/var/lib/airspeed/logs
+Environment=AIRSPEED_CALIBRATION=/var/lib/airspeed/zero.json
+EnvironmentFile=-/etc/default/airspeed-logger
+ExecStart=/opt/airspeed/venv/bin/python /opt/airspeed/logger/airspeed_pi.py --bus ${AIRSPEED_BUS} --address ${AIRSPEED_ADDRESS} --rate ${AIRSPEED_RATE} --density ${AIRSPEED_DENSITY} --output-dir ${AIRSPEED_OUTPUT_DIR} --calibration ${AIRSPEED_CALIBRATION} --control-socket /run/airspeed/logger-control.sock
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=15
+RuntimeDirectory=airspeed
+RuntimeDirectoryMode=0770
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/airspeed
+
+[Install]
+WantedBy=multi-user.target

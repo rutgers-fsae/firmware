@@ -1,8 +1,10 @@
 # Powertrain Control Module (PCM) Notes
+
 - Controls the inverter, turns the lights on the roll hoop on/off, can trigger shutdown events, etc.
 - PCB is 5x5in
 
-## Topology: 
+## Topology:
+
 Every componenet starts with a letter that refers to it type and the first digit corresponds to the sheet number. Second digit refers to the chip it goes to.
 
 > Eg. R12XX is a resistor on sheet 1 that goes into chip U102
@@ -10,6 +12,7 @@ Every componenet starts with a letter that refers to it type and the first digit
 Power inputs begin at the top and it flows downwards. Signal inputs come from the left and exit on the right.
 
 ## Definitions:
+
 - ECU: Engine control unit
 - Bulkhead: special type of wire that allows for connections to pass through while being sealed (think rain/water protection)
 - PWM: Pulse Width Module (fan and pump)
@@ -26,15 +29,17 @@ PCM **does not** talk to the MoTeC. In fact, it was designed with the idea of Mo
 - incremental cost of an arduino is high
 - logic gates come in groups so as a result certain logic gates are unused
 - arduinos can be hard to diagnose because it combines hardware with software
-this is why we prefer to not use arduinos
+  this is why we prefer to not use arduinos
 
 ---
 
 ## Sheet 1
+
 - Contains power supplies as well as inputs, RTD pulse generator (replaced by arduino in 26 car), Reset pulse generator
 - RTD pulse generator didn't work because of leakage through internals of 555 timer
 
 # Week 2
+
 - 555 times can either setup a single pulse or a repetative one
   - can change the duration between pulses
   - will run on any power source (3-24v)
@@ -48,7 +53,9 @@ this is why we prefer to not use arduinos
   - originally the first resistor was non-existant but this causes an issue because all the current runs into the discharge pin which breaks the timer, so it was fixed by adding in the first resistor and modifying the values of the second resistor and the capacitor
 
 ## Sheet 2
+
 **Brake system plausability device** - determines whether there is heavy breaking in the car (for us - standing on the break) and if the power drawn from the moter (5 kilo watts) in which case the system engages which activates the brakes and deactives the motor. How it works:
+
 - Three functions: detecting whether signal is within bounds (4.5-0.5v range), fault detection (with 500ms delay), shutdown (latch and relay)
 - window comparator (manual one because pre made ones didn't fit our range) - if the inverting input drop below the non-inverting input the output is high (and vice versa)
   - stays on until the signal falls below a certain threshold - allows for variation (due to noise and such)
@@ -57,6 +64,7 @@ this is why we prefer to not use arduinos
 - voltages dividers can be created using two resistors to divide a single voltage into two smaller ones
 
 # Week 3
+
 - zener diode that are reverse biased are used to generate the 5.1 reference voltage
   - 5.1 is choosen because its above the required threshold which leaves a margin to be trimmed down
 - potentiometers referes to resistors that create variable voltage divide
@@ -68,5 +76,6 @@ this is why we prefer to not use arduinos
 - the fault latch gets a reset pulse of around 5seconds when the car is turned on in order to charge all the power supplies and reset all the gates/sensors
 
 ## Sheet 3
-- pump pwm, pump speed is based on temperature 
-- 4 different triggers with 5 states (all off is the 5th state) 
+
+- pump pwm, pump speed is based on temperature
+- 4 different triggers with 5 states (all off is the 5th state)

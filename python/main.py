@@ -1,9 +1,10 @@
-import serial
-import time
 import csv
 import os
-from rich import print
+import time
 from datetime import datetime
+
+import serial
+from rich import print
 
 PORT = "/dev/cu.usbserial-DN7BORLC"
 SERIAL_BAUD = 115200
@@ -312,7 +313,6 @@ def main():
         open(INV_LOG_FILE, "w", newline="") as inv_csvfile,
         open(MOTOR_LOG_FILE, "w", newline="") as motor_csvfile,
     ):
-
         writer = csv.writer(csvfile)
         daq_writer = csv.writer(daq_csvfile)
         fault_writer = csv.writer(fault_csvfile)

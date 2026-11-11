@@ -1,21 +1,17 @@
 from __future__ import annotations
 
 import csv
-from pathlib import Path
 import sys
 import tempfile
 import unittest
-
+from pathlib import Path
 from zoneinfo import ZoneInfo
-
-import pandas as pd
 
 from scripts.combine_csv import CombineError, combine_files, read_motec
 
 BACKEND_DIR = Path(__file__).resolve().parents[2] / "daq-website" / "backend"
 sys.path.insert(0, str(BACKEND_DIR))
 from app.services.csv_reader import _read_motec_csv  # noqa: E402
-
 
 MOTEC_METADATA = """Format,MoTeC CSV File,,,,Workbook,
 Venue,Test Track,,,,Worksheet,
@@ -113,7 +109,9 @@ class CombineCsvTests(unittest.TestCase):
         self.write_vn([["2026-06-16 11:46:17", "7", "1", ""]])
         summary = combine_files(self.motec, self.vn, self.output)
         self.assertGreater(summary.matched_rows, 0)
-        self.assertEqual(summary.vectornav_start.utcoffset().total_seconds(), 0)
+        offset = summary.vectornav_start.utcoffset()
+        assert offset is not None
+        self.assertEqual(offset.total_seconds(), 0)
 
     def test_rejects_no_overlap_and_does_not_create_output(self):
         self.write_vn([["2026-06-17T11:46:17-04:00", "7", "1", ""]])

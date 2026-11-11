@@ -38,8 +38,8 @@ pub const ProtocolConfig = struct {
 pub const base_config = ProtocolConfig{
     .ready = true,
     .bitrate = 500_000,
-    .bms = .{ .id = 0x6B1, .kind = .standard, .offset = 2, .width = .two, .endian = .big, .multiplier = 1, .cartOffset = 5 },
-    .inverter = .{ .id = 0x0A7, .kind = .extended, .offset = 0, .width = .two, .endian = .little, .divisor = 10 },
+    .bms = .{ .id = 0x6B1, .kind = .standard, .offset = 2, .width = .two, .endian = .big, .multiplier = 1, .cartOffset = 5, .divisor = 10 },
+    .inverter = .{ .id = 0x0A7, .kind = .standard, .offset = 0, .width = .two, .endian = .little, .divisor = 10 },
 };
 
 pub const DecodeError = error{
@@ -112,7 +112,7 @@ pub fn infoFrame(controller: Controller) Frame {
     frame.data[0] = if (controller.fault) |fault| @intFromEnum(fault) else switch (controller.state) {
         .complete => 7,
         .precharging => 8,
-        else => 0
+        else => 0,
     };
     if (controller.bms) |reading|
         std.mem.writeInt(u16, frame.data[1..3], @intCast(reading.value), .big);
@@ -144,8 +144,6 @@ pub const Controller = struct {
     }
 
     pub fn ingest(self: *Controller, frame: Frame, now_ms: u32) void {
-        if (self.state == .complete or self.state == .fault_latched) return;
-
         if (matches(frame, self.config.bms)) {
             const cart: bool = checkCart(frame, self.config.bms) catch {
                 self.latch(.malformed_frame);
@@ -211,6 +209,11 @@ pub const Controller = struct {
 
         const lhs = @as(u64, inverter.value) * 100;
         const rhs = @as(u64, bms.value) * self.config.threshold_percent;
+
+        if (self.state == .complete and inverter.value < 200) {
+            self.state = .precharging;
+            return;
+        }
         if (lhs >= rhs) {
             self.consecutive_qualifying +|= 1; // saturating addition prevents wrapping to zero
             if (self.consecutive_qualifying >= self.config.qualifying_samples)

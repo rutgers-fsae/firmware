@@ -158,7 +158,7 @@ pub fn main() !void {
 
         switch (controller.state) {
             .complete => pins.enable.put(1),
-            .fault_latched => pins.enable.put(0),
+            .fault_latched, .precharging => pins.enable.put(0),
             else => {},
         }
 

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    import serial
+    pass
 
 
 DEFAULT_PORT = "/dev/cu.usbserial-DN8FHRI7"
@@ -150,11 +150,23 @@ def scenarios(interval: float, stale_delay: float) -> dict[str, list[Step]]:
             inverter(interval, MAX_VOLTAGE + 10),
         ],
         "malformed-bms": [
-            Step(0, BMS_ID, False, b"\x00\x00\x01\x2c\x00", "BMS DLC 5; cart byte missing"),
+            Step(
+                0,
+                BMS_ID,
+                False,
+                b"\x00\x00\x01\x2c\x00",
+                "BMS DLC 5; cart byte missing",
+            ),
         ],
         "malformed-inverter": [
             bms(0, 300),
-            Step(interval, INVERTER_ID, True, b"\x1e", "inverter DLC 1; voltage incomplete"),
+            Step(
+                interval,
+                INVERTER_ID,
+                True,
+                b"\x1e",
+                "inverter DLC 1; voltage incomplete",
+            ),
         ],
     }
 
