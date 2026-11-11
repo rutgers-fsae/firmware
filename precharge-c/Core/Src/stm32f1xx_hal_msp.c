@@ -57,9 +57,10 @@
 
 /* USER CODE END 0 */
 /**
- * Initializes the Global MSP.
- */
-void HAL_MspInit(void) {
+  * Initializes the Global MSP.
+  */
+void HAL_MspInit(void)
+{
 
   /* USER CODE BEGIN MspInit 0 */
 
@@ -70,9 +71,9 @@ void HAL_MspInit(void) {
 
   /* System interrupt init*/
 
-  /** DISABLE: JTAG-DP Disabled and SW-DP Disabled
-   */
-  __HAL_AFIO_REMAP_SWJ_DISABLE();
+  /** NOJTAG: JTAG-DP Disabled and SW-DP Enabled
+  */
+  __HAL_AFIO_REMAP_SWJ_NOJTAG();
 
   /* USER CODE BEGIN MspInit 1 */
 
@@ -80,14 +81,16 @@ void HAL_MspInit(void) {
 }
 
 /**
- * @brief CAN MSP Initialization
- * This function configures the hardware resources used in this example
- * @param hcan: CAN handle pointer
- * @retval None
- */
-void HAL_CAN_MspInit(CAN_HandleTypeDef *hcan) {
+  * @brief CAN MSP Initialization
+  * This function configures the hardware resources used in this example
+  * @param hcan: CAN handle pointer
+  * @retval None
+  */
+void HAL_CAN_MspInit(CAN_HandleTypeDef* hcan)
+{
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-  if (hcan->Instance == CAN1) {
+  if(hcan->Instance==CAN1)
+  {
     /* USER CODE BEGIN CAN1_MspInit 0 */
 
     /* USER CODE END CAN1_MspInit 0 */
@@ -112,17 +115,21 @@ void HAL_CAN_MspInit(CAN_HandleTypeDef *hcan) {
     /* USER CODE BEGIN CAN1_MspInit 1 */
 
     /* USER CODE END CAN1_MspInit 1 */
+
   }
+
 }
 
 /**
- * @brief CAN MSP De-Initialization
- * This function freeze the hardware resources used in this example
- * @param hcan: CAN handle pointer
- * @retval None
- */
-void HAL_CAN_MspDeInit(CAN_HandleTypeDef *hcan) {
-  if (hcan->Instance == CAN1) {
+  * @brief CAN MSP De-Initialization
+  * This function freeze the hardware resources used in this example
+  * @param hcan: CAN handle pointer
+  * @retval None
+  */
+void HAL_CAN_MspDeInit(CAN_HandleTypeDef* hcan)
+{
+  if(hcan->Instance==CAN1)
+  {
     /* USER CODE BEGIN CAN1_MspDeInit 0 */
 
     /* USER CODE END CAN1_MspDeInit 0 */
@@ -133,23 +140,26 @@ void HAL_CAN_MspDeInit(CAN_HandleTypeDef *hcan) {
     PA11     ------> CAN_RX
     PA12     ------> CAN_TX
     */
-    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_11 | GPIO_PIN_12);
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_11|GPIO_PIN_12);
 
     /* USER CODE BEGIN CAN1_MspDeInit 1 */
 
     /* USER CODE END CAN1_MspDeInit 1 */
   }
+
 }
 
 /**
- * @brief UART MSP Initialization
- * This function configures the hardware resources used in this example
- * @param huart: UART handle pointer
- * @retval None
- */
-void HAL_UART_MspInit(UART_HandleTypeDef *huart) {
+  * @brief UART MSP Initialization
+  * This function configures the hardware resources used in this example
+  * @param huart: UART handle pointer
+  * @retval None
+  */
+void HAL_UART_MspInit(UART_HandleTypeDef* huart)
+{
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-  if (huart->Instance == USART2) {
+  if(huart->Instance==USART2)
+  {
     /* USER CODE BEGIN USART2_MspInit 0 */
 
     /* USER CODE END USART2_MspInit 0 */
@@ -174,17 +184,21 @@ void HAL_UART_MspInit(UART_HandleTypeDef *huart) {
     /* USER CODE BEGIN USART2_MspInit 1 */
 
     /* USER CODE END USART2_MspInit 1 */
+
   }
+
 }
 
 /**
- * @brief UART MSP De-Initialization
- * This function freeze the hardware resources used in this example
- * @param huart: UART handle pointer
- * @retval None
- */
-void HAL_UART_MspDeInit(UART_HandleTypeDef *huart) {
-  if (huart->Instance == USART2) {
+  * @brief UART MSP De-Initialization
+  * This function freeze the hardware resources used in this example
+  * @param huart: UART handle pointer
+  * @retval None
+  */
+void HAL_UART_MspDeInit(UART_HandleTypeDef* huart)
+{
+  if(huart->Instance==USART2)
+  {
     /* USER CODE BEGIN USART2_MspDeInit 0 */
 
     /* USER CODE END USART2_MspDeInit 0 */
@@ -195,12 +209,13 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef *huart) {
     PA2     ------> USART2_TX
     PA3     ------> USART2_RX
     */
-    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_2 | GPIO_PIN_3);
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_2|GPIO_PIN_3);
 
     /* USER CODE BEGIN USART2_MspDeInit 1 */
 
     /* USER CODE END USART2_MspDeInit 1 */
   }
+
 }
 
 /* USER CODE BEGIN 1 */
