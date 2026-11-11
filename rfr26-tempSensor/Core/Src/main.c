@@ -30,14 +30,6 @@ typedef struct {
 #define MUX_DISABLE_CMD 0x80U
 #define DAQ_BASE_ID 0x18FF5000U
 #define DAQ_EXT_ID_MAX 0x1FFFFFFFU
-#ifndef BOOTLOADER_NODE_ID
-#error "BOOTLOADER_NODE_ID is required (valid range: 1..7)"
-#endif
-#if (BOOTLOADER_NODE_ID < 1U) || (BOOTLOADER_NODE_ID > 7U)
-#error "BOOTLOADER_NODE_ID must be between 1 and 7"
-#endif
-#define BOOTLOADER_COMMAND_CAN_ID (0x600U + BOOTLOADER_NODE_ID)
-#define BOOTLOADER_RESET_COMMAND 0x05U
 // #define USE_SEMIHOSTING			true
 #define SEND_CHANNEL_TEMPS true
 
@@ -255,10 +247,10 @@ static void CAN_Init_Filter(void) {
   f.FilterActivation = CAN_FILTER_ENABLE;
   f.FilterBank = 0u;
   f.FilterFIFOAssignment = CAN_RX_FIFO0;
-  f.FilterIdHigh = (uint32_t)(BOOTLOADER_COMMAND_CAN_ID << 5);
+  f.FilterIdHigh = 0x0000u;
   f.FilterIdLow = 0x0000u;
-  f.FilterMaskIdHigh = 0xFFE0u;
-  f.FilterMaskIdLow = 0x0006u; /* Match standard, data frames only. */
+  f.FilterMaskIdHigh = 0x0000u;
+  f.FilterMaskIdLow = 0x0000u;
   f.FilterMode = CAN_FILTERMODE_IDMASK;
   f.FilterScale = CAN_FILTERSCALE_32BIT;
   f.SlaveStartFilterBank = 14u;
@@ -512,7 +504,6 @@ int main(void) {
 
   CAN_Init_Filter();
   HAL_CAN_Start(&hcan);
-  HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
 
   if (HAL_ADCEx_Calibration_Start(&hadc1) != HAL_OK) {
     Error_Handler();
@@ -566,19 +557,6 @@ int main(void) {
  * @brief System Clock Configuration
  * @retval None
  */
-/* Reset into the protected bootloader when the host addresses this board. */
-void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *handle) {
-	CAN_RxHeaderTypeDef header;
-	uint8_t data[8];
-	if (handle != &hcan || HAL_CAN_GetRxMessage(handle, CAN_RX_FIFO0, &header, data) != HAL_OK)
-		return;
-	if (header.IDE == CAN_ID_STD && header.RTR == CAN_RTR_DATA &&
-		header.StdId == BOOTLOADER_COMMAND_CAN_ID && header.DLC >= 1U &&
-		data[0] == BOOTLOADER_RESET_COMMAND) {
-		NVIC_SystemReset();
-	}
-}
-
 void SystemClock_Config(void) {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};

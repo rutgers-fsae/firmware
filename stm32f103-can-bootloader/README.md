@@ -75,4 +75,6 @@ Do not test on the complete vehicle first. Validate on two powered bench boards 
 
 ## Application integration
 
-The included temperature-board application is relocated to `0x08004000`. Its normal CAN receive path recognizes command ID `0x600 + node` with command byte `0x05` and calls `NVIC_SystemReset()`. After reset, the host has 1.5 seconds to start an update before the bootloader launches the valid application. Assign a unique node ID to each application and its matching bootloader; do not reuse node 1 across boards.
+This PR contains the bootloader and host flashing tools only; it does not modify application firmware. Applications must be separately linked at `0x08004000` with a `0x4000` vector-table offset before they can run behind this bootloader. An existing binary linked at `0x08000000` cannot simply be flashed at the application address.
+
+For updates while an application is running, the application must separately implement a CAN receive handler for command ID `0x600 + node`, command byte `0x05`, that calls `NVIC_SystemReset()`. Without that integration, reset the board physically and begin the transfer during the bootloader startup window. After reset, the host has 1.5 seconds to start an update before the bootloader launches a valid application. Assign a unique node ID to each application and its matching bootloader; do not reuse node 1 across boards.

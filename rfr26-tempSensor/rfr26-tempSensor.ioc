@@ -219,4 +219,3 @@ TIM4.Pulse-PWM\ Generation4\ No\ Output=800
 VP_TIM4_VS_no_output4.Mode=PWM Generation4 No Output
 VP_TIM4_VS_no_output4.Signal=TIM4_VS_no_output4
 TIM4.OCMode_PWM_4=TIM_OCMODE_PWM2
-NVIC.USB_LP_CAN1_RX0_IRQn=true\:1\:0\:false\:false\:true\:false\:true\:true

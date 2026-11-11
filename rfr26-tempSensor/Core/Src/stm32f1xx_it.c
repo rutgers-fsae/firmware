@@ -55,7 +55,6 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
-extern CAN_HandleTypeDef hcan;
 
 /* USER CODE BEGIN EV */
 extern DMA_HandleTypeDef hdma_adc1;
@@ -190,6 +189,5 @@ void SysTick_Handler(void) {
 void DMA1_Channel1_IRQHandler(void) { HAL_DMA_IRQHandler(&hdma_adc1); }
 
 /* USER CODE BEGIN 1 */
-void USB_LP_CAN1_RX0_IRQHandler(void) { HAL_CAN_IRQHandler(&hcan); }
 
 /* USER CODE END 1 */
