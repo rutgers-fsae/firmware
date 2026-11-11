@@ -95,7 +95,7 @@ static void process_command(const uint8_t data[8], uint8_t length) {
 
     switch (command) {
     case BL_CMD_INFO:
-        send_status(BL_STATUS_READY, command, expected_sequence, BL_MAX_IMAGE_SIZE);
+        send_status(BL_STATUS_READY, command, expected_sequence, ((uint32_t)BL_PROTOCOL_VERSION << 24) | BL_MAX_IMAGE_SIZE);
         break;
     case BL_CMD_BEGIN:
         if (length != 5U || value == 0U || value > BL_MAX_IMAGE_SIZE) {
@@ -159,28 +159,38 @@ static void process_command(const uint8_t data[8], uint8_t length) {
     }
 }
 
+static uint16_t packet_crc16(const uint8_t *data, uint8_t length) {
+    uint16_t crc = 0xFFFFU;
+    for (uint8_t i=0; i<length; ++i) {
+        crc ^= (uint16_t)data[i] << 8;
+        for (uint8_t bit=0; bit<8; ++bit)
+            crc = (uint16_t)((crc & 0x8000U) ? ((uint32_t)crc << 1) ^ 0x1021U : (uint32_t)crc << 1);
+    }
+    return crc;
+}
 static void process_data(const uint8_t data[8], uint8_t length) {
-    if (rx_state != RX_DATA || length < 3U) {
-        send_status(BL_STATUS_BAD_STATE, 0U, expected_sequence, bytes_written);
-        return;
+    if (rx_state != RX_DATA || length < 5U || length > 8U) {
+        send_status(BL_STATUS_BAD_STATE, 0U, expected_sequence, bytes_written); return;
+    }
+    const uint16_t received_crc = (uint16_t)data[length-2U] | ((uint16_t)data[length-1U] << 8);
+    if (packet_crc16(data, length-2U) != received_crc) {
+        send_status(BL_STATUS_BAD_PACKET_CRC, 0U, expected_sequence, bytes_written); return;
     }
     const uint16_t sequence = (uint16_t)data[0] | ((uint16_t)data[1] << 8);
-    if (expected_sequence > 0U && sequence == (uint16_t)(expected_sequence - 1U)) {
-        send_status(BL_STATUS_ACK, 0U, sequence, bytes_written);
-        return;
+    if (expected_sequence > 0U && sequence == (uint16_t)(expected_sequence-1U)) {
+        send_status(BL_STATUS_ACK, 0U, sequence, bytes_written); return;
     }
     if (sequence != expected_sequence) {
-        send_status(BL_STATUS_BAD_SEQUENCE, 0U, expected_sequence, sequence);
-        return;
+        send_status(BL_STATUS_BAD_SEQUENCE, 0U, expected_sequence, sequence); return;
     }
-    uint8_t count = (uint8_t)(length - 2U);
-    if (bytes_written + count > image_size) count = (uint8_t)(image_size - bytes_written);
+    const uint8_t count = length-4U;
+    if (bytes_written >= image_size || count != ((image_size-bytes_written < 4U) ? image_size-bytes_written : 4U)) {
+        send_status(BL_STATUS_BAD_LENGTH, 0U, sequence, bytes_written); return;
+    }
     if (!write_bytes(&data[2], count)) {
-        send_status(BL_STATUS_FLASH_ERROR, 0U, expected_sequence, HAL_FLASH_GetError());
-        return;
+        send_status(BL_STATUS_FLASH_ERROR, 0U, expected_sequence, HAL_FLASH_GetError()); return;
     }
-    bytes_written += count;
-    ++expected_sequence;
+    bytes_written += count; ++expected_sequence;
     send_status(BL_STATUS_ACK, 0U, sequence, bytes_written);
 }
 
@@ -241,10 +251,14 @@ static uint32_t crc32_flash(uint32_t address, uint32_t length) {
 }
 
 static bool metadata_write(void) {
-    const bl_metadata_t metadata = {BL_METADATA_MAGIC, image_size, expected_crc, 0xFFFFFFFFUL};
-    const uint16_t *words = (const uint16_t *)&metadata;
+    const uint16_t words[8] = {
+        (uint16_t)BL_METADATA_MAGIC, (uint16_t)(BL_METADATA_MAGIC >> 16),
+        (uint16_t)image_size, (uint16_t)(image_size >> 16),
+        (uint16_t)expected_crc, (uint16_t)(expected_crc >> 16),
+        0xFFFFU, 0xFFFFU
+    };
     HAL_FLASH_Unlock();
-    for (uint32_t i = 0U; i < sizeof(metadata) / 2U; ++i) {
+    for (uint32_t i = 0U; i < 8U; ++i) {
         if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_HALFWORD, BL_METADATA_ADDRESS + i * 2U, words[i]) != HAL_OK) {
             HAL_FLASH_Lock(); return false;
         }

@@ -16,8 +16,12 @@ All frames use 11-bit Classical CAN IDs. A unique node ID from 1 through 7 is re
 
 - `0x5E0`: discovery request
 - `0x600 + node`: commands
-- `0x620 + node`: data (`uint16` sequence followed by up to 6 image bytes)
+- `0x620 + node`: data (`uint16` little-endian sequence, up to 4 image bytes, then a little-endian CRC-16)
 - `0x680 + node`: response
+
+Protocol v2 protects each data frame with CRC-16/CCITT-FALSE (polynomial `0x1021`, initial value `0xFFFF`, no reflection or final XOR), covering the sequence bytes and image bytes. A bad packet returns status `0x87` without advancing the sequence or writing flash; the host retries the same packet. The final CRC-32 still verifies the entire image before validity metadata is written. INFO and discovery encode the protocol version in the high byte of their detail field and the maximum image size in the lower 24 bits. The uploader refuses a non-v2 bootloader before erasing the application. Upgrade the bootloader through ST-LINK before using this uploader with a v1 board.
+
+Metadata is serialized as explicit 16-bit words so optimized builds do not read an aliased, uninitialized structure when programming flash.
 
 Commands provide info, begin/erase, set expected CRC-32, finish/verify, abort, start application, and reset. After a successful END, the bootloader reports COMPLETE and remains active until the host sends START and receives its acknowledgement. Data acknowledgements are idempotent: if an ACK is lost, the host can safely resend the last frame without programming it twice. An incomplete image is never marked bootable. After power loss the protected bootloader remains available for retransmission; this MCU does not have enough guaranteed flash for two copies of all current applications.
 
@@ -33,7 +37,7 @@ From this directory, run `make NODE=1` for a node-1 external-crystal build, or `
 
 The binaries are written below `build/HSE/nodeN/` or `build/HSI/nodeN/`. Initially install the selected binary with ST-LINK at `0x08000000`.
 
-With GCC 16.2.0 the HSE build occupies 6,368 bytes of flash and 1,120 bytes of RAM, fitting comfortably inside the reserved 16 KiB bootloader region.
+With GCC 16.2.0 the HSE build occupies 6,504 bytes of flash and 1,120 bytes of RAM, fitting comfortably inside the reserved 16 KiB bootloader region.
 
 ## Security assumption
 
@@ -48,8 +52,27 @@ python3 ../scripts/can_flash.py firmware.bin --node 1 --interface socketcan --ch
 python3 ../scripts/can_flash.py --node 1 --interface socketcan --channel can0 --bitrate 500000 --reset
 ```
 
+For an Ewert CANdapter on macOS, also install `pyserial` and specify the actual serial device:
+
+```sh
+python3 -m pip install python-can pyserial
+python3 ../scripts/can_flash.py firmware.bin --node 1 --interface ewert --channel /dev/cu.usbserial-YOUR_ADAPTER
+python3 ../scripts/can_flash.py firmware.bin --node 1 --interface ewert --channel /dev/cu.usbserial-YOUR_ADAPTER --fast
+```
+
+The Ewert backend uses its native `T` standard-frame encoding, continuously drains USB receive data, filters unrelated CAN traffic in the host, and waits for adapter acknowledgements. Filtering does not reduce traffic on the vehicle bus. Default packet spacing is 150 ms; `--fast` selects 10 ms while retaining retries, per-packet CRC, echoed image-size/CRC checks, and final image verification. Fast mode is an unvalidated performance option: measure on the intended adapter and bus load. Interrupted transfers restart from the beginning; recovery does not skip verification. Setup retries restart BEGIN before any image data when the setup acknowledgement is lost.
+
+Run regression checks with:
+
+```sh
+python3 -m unittest discover -s ../scripts/tests -p 'test_*can*.py' -v
+python3 -m unittest discover -s ../scripts/tests -p test_bootloader_receiver.py -v
+```
+
+The receiver tests compile the actual C CRC/data/metadata routines with a host C compiler. The Ewert integration test uses a pseudo-terminal, background traffic, lost/duplicate replies, and an adapter rejection; it needs `pyserial` and a POSIX host.
+
 Do not test on the complete vehicle first. Validate on two powered bench boards with SWD attached for recovery.
 
 ## Application integration
 
-The included temperature-board application is relocated to `0x08004000`. Its normal CAN receive path must recognize command ID `0x600 + node` with command byte `0x05` and call `NVIC_SystemReset()`. After reset, the host has 1.5 seconds to start an update before the bootloader launches the valid application. A permanent node-ID allocation is still required before adding that handler because the repository does not currently define unique update IDs for the two boards.
+The included temperature-board application is relocated to `0x08004000`. Its normal CAN receive path recognizes command ID `0x600 + node` with command byte `0x05` and calls `NVIC_SystemReset()`. After reset, the host has 1.5 seconds to start an update before the bootloader launches the valid application. Assign a unique node ID to each application and its matching bootloader; do not reuse node 1 across boards.
