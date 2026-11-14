@@ -26,4 +26,4 @@ dev = [
 ]
 
 [tool.ty.environment]
-extra-paths = ["../daq-website/backend", "..", "../arduino/NanoR4Airspeed/logger"]
+extra-paths = ["../daq-website/backend", "..", "../arduino/NanoR4Airspeed/logger", "../scripts", "../scripts/tests"]
