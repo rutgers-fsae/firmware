@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "logger"))
 import airspeed_pi as pi
+from airspeed_sensors import MS4525DO, PressureReader, Reading
 
 
 class PiAcquisition(unittest.TestCase):
@@ -56,6 +57,7 @@ class PiAcquisition(unittest.TestCase):
                 zero=False,
             )
             stop = threading.Event()
+            reader = PressureReader(None, 0x28, MS4525DO)
             states = []
 
             def control(_socket, state):
@@ -71,9 +73,9 @@ class PiAcquisition(unittest.TestCase):
                 patch.object(pi, "poll_control", side_effect=control),
                 patch.object(pi.time, "monotonic", side_effect=lambda: next(ticks)),
                 patch.object(stop, "wait", return_value=False),
-                patch.object(pi, "read_sensor", return_value=(8220, 0)),
+                patch.object(reader, "read", return_value=Reading(8220)),
             ):
-                pi.acquire(args, None, stop, object())
+                pi.acquire(args, reader, stop, object())
             self.assertEqual(states[-1]["state"], "ready")
             original = args.calibration.read_text()
             with next(root.glob("*.csv")).open() as source:
@@ -84,14 +86,14 @@ class PiAcquisition(unittest.TestCase):
             states.clear()
             stop.clear()
             ticks = iter(i * 0.25 for i in range(1000))
-            readings = iter([(8220 if i % 2 else 8320, 0) for i in range(100)])
+            readings = iter([Reading(8220 if i % 2 else 8320) for i in range(100)])
             with (
                 patch.object(pi, "poll_control", side_effect=control),
                 patch.object(pi.time, "monotonic", side_effect=lambda: next(ticks)),
                 patch.object(stop, "wait", return_value=False),
-                patch.object(pi, "read_sensor", side_effect=lambda *_: next(readings)),
+                patch.object(reader, "read", side_effect=lambda: next(readings)),
             ):
-                pi.acquire(args, None, stop, object())
+                pi.acquire(args, reader, stop, object())
             self.assertEqual(states[-1]["state"], "error")
             self.assertEqual(args.calibration.read_text(), original)
 
@@ -107,7 +109,9 @@ class PiAcquisition(unittest.TestCase):
                 pass
 
         with patch.dict(sys.modules, smbus2=argparse.Namespace(i2c_msg=Message)):
-            self.assertEqual(pi.read_sensor(Bus(), 0x28), (8220, 2))
+            self.assertEqual(
+                PressureReader(Bus(), 0x28, MS4525DO).read(), Reading(8220, 2)
+            )
 
     def test_acquisition_zero_failures_and_saved_csv(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -123,14 +127,15 @@ class PiAcquisition(unittest.TestCase):
                 zero=True,
             )
             stop = threading.Event()
+            reader = PressureReader(None, 0x28, MS4525DO)
             # Advance monotonic time to cover the actual five-second zero requirement.
             ticks = iter(i * 0.25 for i in range(1000))
             with (
                 patch.object(pi.time, "monotonic", side_effect=lambda: next(ticks)),
                 patch.object(stop, "wait", return_value=False),
-                patch.object(pi, "read_sensor", return_value=(8220, 0)),
+                patch.object(reader, "read", return_value=Reading(8220)),
             ):
-                pi.acquire(args, None, stop)
+                pi.acquire(args, reader, stop)
             cal = pi.load_calibration(args.calibration, 1, 0x28)
             self.assertGreaterEqual(cal["sample_count"], 20)
             self.assertGreaterEqual(cal["duration_s"], 5)
@@ -145,10 +150,10 @@ class PiAcquisition(unittest.TestCase):
             with (
                 patch.object(stop, "wait", return_value=False),
                 patch.object(
-                    pi,
-                    "read_sensor",
+                    reader,
+                    "read",
                     side_effect=[
-                        (8300, 0),
+                        Reading(8300),
                         OSError("no ACK"),
                         OSError("no ACK"),
                         OSError("no ACK"),
@@ -156,7 +161,7 @@ class PiAcquisition(unittest.TestCase):
                 ),
             ):
                 with self.assertRaises(RuntimeError):
-                    pi.acquire(args, None, stop)
+                    pi.acquire(args, reader, stop)
             csv_path = next(root.glob("*.csv"))
             with csv_path.open() as source:
                 rows = list(csv.DictReader(source))
@@ -169,7 +174,7 @@ class PiAcquisition(unittest.TestCase):
             )
             # SIGTERM sets this event; cancellation closes and syncs the CSV too.
             stop.set()
-            pi.acquire(args, None, stop)
+            pi.acquire(args, reader, stop)
             self.assertEqual(len(list(root.glob("*.csv"))), 2)
 
 
