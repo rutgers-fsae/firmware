@@ -50,6 +50,7 @@ class EwertBus:
         self.tx_lock = threading.Lock()
         self.stop = threading.Event()
         self.reader_error = None
+        self.channel_resets = self.consecutive_rejections = 0
         self.bad_packets = self.total_frames = self.filtered_frames = (
             self.adapter_errors
         ) = 0
@@ -57,13 +58,32 @@ class EwertBus:
         self.reader = threading.Thread(target=self.read_loop, daemon=True)
         self.reader.start()
         try:
-            self.command("C", allow_error=True)
-            self.command("S6")
-            self.command("A0")
-            self.command("O")
+            self.open_channel()
         except BaseException:
             self.close()
             raise
+
+    def open_channel(self):
+        with self.tx_lock:
+            self._open_channel()
+
+    def _open_channel(self):
+        for text, allow_error in (
+            ("C", True),
+            ("S6", False),
+            ("A0", False),
+            ("O", False),
+        ):
+            self._command(text, allow_error)
+
+    def reset_channel(self, reason="stopped transmitting"):
+        """Close and reopen the CAN channel; this clears an adapter that rejects every frame."""
+        self.channel_resets += 1
+        if self.channel_resets == 1:
+            print(
+                f"Warning: CANdapter {reason}; reopening its CAN channel.", flush=True
+            )
+        self.open_channel()
 
     def damaged(self):
         self.bad_packets += 1
@@ -91,7 +111,7 @@ class EwertBus:
                 self.partial.clear()
                 try:
                     frame = decode_frame(packet)
-                except (ValueError, IndexError, UnicodeError):
+                except ValueError, IndexError, UnicodeError:
                     self.damaged()
                     continue
                 if frame is not None:
@@ -140,26 +160,28 @@ class EwertBus:
 
     def command(self, text, allow_error=False):
         with self.tx_lock:
-            self.check_reader()
-            with self.condition:
-                self.events.clear()
-            self.ser.write((text + "\r").encode("ascii"))
-            self.ser.flush()
-            deadline = time.monotonic() + 1
-            with self.condition:
-                while True:
-                    self.check_reader()
-                    if self.events:
-                        event = self.events.popleft()
-                        if event == "ack" or allow_error:
-                            return
-                        raise can.CanOperationError("CANdapter rejected transmission")
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        raise can.CanOperationError(
-                            "No CANdapter transmit acknowledgement"
-                        )
-                    self.condition.wait(remaining)
+            self._command(text, allow_error)
+
+    def _command(self, text, allow_error=False):
+        """Send one command and wait for its ACK/BELL. The caller holds tx_lock."""
+        self.check_reader()
+        with self.condition:
+            self.events.clear()
+        self.ser.write((text + "\r").encode("ascii"))
+        self.ser.flush()
+        deadline = time.monotonic() + 1
+        with self.condition:
+            while True:
+                self.check_reader()
+                if self.events:
+                    event = self.events.popleft()
+                    if event == "ack" or allow_error:
+                        return
+                    raise can.CanOperationError("CANdapter rejected transmission")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise can.CanOperationError("No CANdapter transmit acknowledgement")
+                self.condition.wait(remaining)
 
     @staticmethod
     def encode(msg):
@@ -170,38 +192,70 @@ class EwertBus:
         )
 
     def send(self, msg):
-        self.command(self.encode(msg))
+        try:
+            self.command(self.encode(msg))
+        except can.CanOperationError as error:
+            if "rejected" in str(error):
+                self.consecutive_rejections += 1
+                if self.consecutive_rejections >= 3:
+                    self.consecutive_rejections = 0
+                    self.reset_channel("rejected three transmissions in a row")
+            raise
+        self.consecutive_rejections = 0
+
+    # Frames in flight at once. The adapter has a small transmit queue: 33 frames written back to
+    # back on a busy bus got 15 rejections and then wedged the adapter until its channel was reopened.
+    CHUNK = 8
+
+    def _write_chunk(self, lines, idle):
+        """Write frames, wait for the adapter to answer each; return (accepted, rejected)."""
+        with self.condition:
+            self.events.clear()
+        self.ser.write(b"".join(lines))
+        accepted = rejected = 0
+        deadline = time.monotonic() + idle
+        with self.condition:
+            while accepted + rejected < len(lines):
+                self.check_reader()
+                if self.events:
+                    event = self.events.popleft()
+                    accepted += event == "ack"
+                    rejected += event != "ack"
+                    deadline = time.monotonic() + idle
+                    continue
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self.condition.wait(remaining)
+        return accepted, rejected
 
     def send_many(self, messages, idle=0.05):
-        """Queue a burst in one write and return once the adapter has answered every frame.
+        """Send frames in small flow-controlled chunks; return once the adapter has answered them all.
 
-        The adapter rejects roughly 1-2% of queued frames (BELL) and its reply count can be
-        off by one, so rejections are only counted here; the caller must confirm delivery
-        with the target. Replies to earlier frames are already in the receive queue on return.
-        No flush(): on macOS tcdrain() adds about 100 ms per 64-frame burst.
+        The adapter rejects a few percent of frames (BELL) and its reply count can be off by one,
+        so rejections are only counted; the caller must confirm delivery with the target. If a
+        whole chunk is rejected the adapter is wedged, so its channel is reopened and the chunk
+        sent once more. No flush(): on macOS tcdrain() adds about 100 ms per burst.
         """
-        burst = "".join(self.encode(msg) + "\r" for msg in messages).encode("ascii")
+        lines = [(self.encode(msg) + "\r").encode("ascii") for msg in messages]
         with self.tx_lock:
             self.check_reader()
-            with self.condition:
-                self.events.clear()
-            self.ser.write(burst)
-            answered = 0
-            deadline = time.monotonic() + idle
-            with self.condition:
-                while answered < len(messages):
-                    self.check_reader()
-                    if self.events:
-                        answered += len(self.events)
-                        self.events.clear()
-                        deadline = time.monotonic() + idle
-                        continue
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        break
-                    self.condition.wait(remaining)
-            if not answered:
-                raise can.CanOperationError("No CANdapter transmit acknowledgement")
+            for start in range(0, len(lines), self.CHUNK):
+                chunk = lines[start : start + self.CHUNK]
+                accepted, rejected = self._write_chunk(chunk, idle)
+                if not accepted:
+                    self.channel_resets += 1
+                    if self.channel_resets == 1:
+                        print(
+                            "Warning: CANdapter stopped transmitting; reopening its CAN channel.",
+                            flush=True,
+                        )
+                    self._open_channel()
+                    accepted, rejected = self._write_chunk(chunk, idle)
+                    if not accepted:
+                        raise can.CanOperationError(
+                            "CANdapter rejects every transmission"
+                        )
 
     def recv(self, timeout):
         deadline = time.monotonic() + max(0, timeout)
@@ -229,6 +283,7 @@ class EwertBus:
             if self.total_frames:
                 print(
                     f"CAN receive: {self.total_frames} frames; {self.filtered_frames} background frames filtered; "
-                    f"{self.bad_packets} damaged packets; {self.adapter_errors} adapter errors.",
+                    f"{self.bad_packets} damaged packets; {self.adapter_errors} adapter errors; "
+                    f"{self.channel_resets} channel reopenings.",
                     flush=True,
                 )

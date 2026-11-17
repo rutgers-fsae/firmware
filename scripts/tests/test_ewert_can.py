@@ -28,13 +28,14 @@ BACKGROUND = b"t0AA8040009000001C000\r"
 class Adapter:
     """CANdapter stand-in: ACK/BELL per command, bootloader replies and background traffic as text."""
 
-    def __init__(self, bell_rate=0.0):
+    def __init__(self, bell_rate=0.0, wedge_after=0):
         self.master, self.slave = pty.openpty()
         tty.setraw(self.slave)
         self.port = os.ttyname(self.slave)
         self.target = Target()
         self.bell_rate, self.random = bell_rate, random.Random(1)
         self.data_frames = self.bells = 0
+        self.wedge_after, self.wedged, self.reopened = wedge_after, False, 0
         self.failure = None
         self.stop = threading.Event()
         self.thread = threading.Thread(target=self.loop, daemon=True)
@@ -42,11 +43,26 @@ class Adapter:
 
     def process(self, text):
         if text in (b"C", b"S6", b"A0", b"O"):
+            if text == b"C" and self.wedged:
+                self.wedged = (
+                    False  # Closing the CAN channel clears the stuck transmit queue.
+                )
+                self.reopened += 1
             os.write(self.master, b"\x06")
             return
         msg = transport.decode_frame(text)
+        if self.wedged:
+            self.bells += 1
+            os.write(
+                self.master, b"\x07"
+            )  # Rejects everything until the channel is reopened.
+            return
         if msg.arbitration_id == 0x621:
             self.data_frames += 1
+            if self.data_frames == self.wedge_after:
+                self.wedged = True
+                os.write(self.master, b"\x07")
+                return
             # Unrelated bus traffic, plus one burst of line noise, interleaved with the transfer.
             os.write(self.master, BACKGROUND)
             if self.data_frames == 10:
@@ -103,6 +119,52 @@ class EwertTests(unittest.TestCase):
             self.assertEqual(bus.adapter_errors, adapter.bells)
             self.assertGreaterEqual(bus.filtered_frames, adapter.data_frames)
             self.assertGreater(bus.bad_packets, 0)
+        finally:
+            if bus:
+                bus.close()
+            adapter.close()
+
+    def test_wedged_adapter_is_reopened_and_the_transfer_completes(self):
+        image = bytes(range(256)) * 12 + bytes(range(7))
+        adapter = Adapter(wedge_after=40)
+        bus = None
+        try:
+            bus = transport.EwertBus(adapter.port)
+            flasher = module.CanFlasher(bus, 1)
+            flasher.flash(image)
+            self.assertIsNone(adapter.failure)
+            self.assertEqual(adapter.target.contents(), image)
+            self.assertEqual(adapter.reopened, 1)
+            self.assertGreaterEqual(bus.channel_resets, 1)
+        finally:
+            if bus:
+                bus.close()
+            adapter.close()
+
+    def test_single_frames_rejected_three_times_reopen_the_channel(self):
+        adapter = Adapter(wedge_after=1)
+        bus = None
+        try:
+            bus = transport.EwertBus(adapter.port)
+            frame = module.can.Message(
+                arbitration_id=0x621, data=bytes(8), is_extended_id=False
+            )
+            for _ in range(
+                3
+            ):  # The first frame trips the wedge; the next ones are rejected.
+                with self.assertRaises(module.can.CanError):
+                    bus.send(frame)
+            self.assertEqual(bus.channel_resets, 1)
+            # The channel works again: a harmless INFO query is delivered and answered.
+            bus.send(
+                module.can.Message(
+                    arbitration_id=0x601,
+                    data=bytes([module.INFO]),
+                    is_extended_id=False,
+                )
+            )
+            self.assertEqual(bus.recv(1.0).arbitration_id, 0x681)
+            self.assertIsNone(adapter.failure)
         finally:
             if bus:
                 bus.close()

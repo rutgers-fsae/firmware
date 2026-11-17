@@ -215,6 +215,36 @@ class CanFlasherTests(unittest.TestCase):
             flasher(bus).flash(b"1234", wait=0.05)
         self.assertEqual(sum(m.data[0] == module.BEGIN for m in bus.sent), 1)
 
+    def test_missing_status_resends_the_whole_window(self):
+        class LosesFirstRound(Target):
+            """Every data frame and the first status reply of the first round are lost."""
+
+            def __init__(self):
+                super().__init__()
+                self.lost_round = True
+                self.polls_seen = []
+
+            def on_data(self, data):
+                if not self.lost_round:
+                    super().on_data(data)
+
+            def send(self, msg):
+                if msg.arbitration_id == 0x601 and msg.data[0] == module.WINDOW_STATUS:
+                    data_so_far = sum(m.arbitration_id == 0x621 for m in self.sent)
+                    self.polls_seen.append(data_so_far)
+                    if self.lost_round:
+                        self.lost_round = False
+                        self.sent.append(msg)
+                        return  # No status reply either.
+                super().send(msg)
+
+        bus = LosesFirstRound()
+        image = bytes(range(5 * module.WINDOW))
+        flasher(bus).flash(image, wait=0.05)
+        self.assertEqual(bus.contents(), image)
+        # The second poll follows a second full copy of the window, not a bare poll.
+        self.assertEqual(bus.polls_seen[:2], [module.WINDOW, 2 * module.WINDOW])
+
     def test_window_status_skips_stale_and_damaged_replies(self):
         bus = Target()
         bus.queue = [types.SimpleNamespace(arbitration_id=0x681, data=b"short")]

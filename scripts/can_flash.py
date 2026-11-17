@@ -238,10 +238,8 @@ class CanFlasher:
                 except TargetError:
                     raise
                 except FlashError:
-                    resend, still_missing = (
-                        [],
-                        missing,
-                    )  # Lost poll or reply: ask again.
+                    # No status: send everything still missing again, not just the poll.
+                    resend, still_missing = missing, missing
                 else:
                     if mask is None:
                         break
@@ -251,6 +249,9 @@ class CanFlasher:
                     stalls = 0
                 else:
                     stalls += 1
+                    time.sleep(
+                        min(0.05 * stalls, 0.5)
+                    )  # Let the adapter and bus settle.
                     if stalls > self.retries:
                         raise FlashError(
                             f"no progress at byte {offset} after {stalls} attempts"
