@@ -57,7 +57,6 @@
 /* External variables --------------------------------------------------------*/
 
 /* USER CODE BEGIN EV */
-extern DMA_HandleTypeDef hdma_adc1;
 
 /* USER CODE END EV */
 
@@ -185,8 +184,6 @@ void SysTick_Handler(void) {
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32f1xx.s).                    */
 /******************************************************************************/
-
-void DMA1_Channel1_IRQHandler(void) { HAL_DMA_IRQHandler(&hdma_adc1); }
 
 /* USER CODE BEGIN 1 */
 
