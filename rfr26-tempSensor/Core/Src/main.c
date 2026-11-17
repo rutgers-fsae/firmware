@@ -12,7 +12,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
-#include <math.h>
 
 typedef enum { MUX1 = 0, MUX2 = 1, MUX3 = 2 } mux_id_t;
 
@@ -28,92 +27,53 @@ typedef struct {
 #define NUM_MUXES 3U
 #define MUX_CHANNELS_PER_CHIP 32U
 #define MUX_DISABLE_CMD 0x80U
-#define DAQ_BASE_ID 0x18FF5000U
+#define DAQ_BASE_ID 1U
 #define DAQ_EXT_ID_MAX 0x1FFFFFFFU
+#define CAN_TX_TIMEOUT_MS 100U
 // #define USE_SEMIHOSTING			true
-#define SEND_CHANNEL_TEMPS true
+#define SHOW_CHANNEL_TEMPS true
 
-/* FILTER BEGIN: also compiled by test_filter.py without the STM32 HAL. */
-#define ADC_SAMPLE_RATE_HZ 45000U
-#define FILTER_WARMUP_SAMPLES 64U
-#define CHANNEL_SAMPLES 500U
-#define ADC_CAPTURE_SAMPLES (FILTER_WARMUP_SAMPLES + CHANNEL_SAMPLES)
-#define ADC_CAPTURE_TIMEOUT_MS 25U
-#define NUM_STAGES 2U
+/* ---------------------------------------------------------------------------
+ * Biquad IIR filter — 2nd-order Butterworth lowpass at 5 kHz
+ * Generated for fs = 250 kHz (one ADC sample every ~4 us).
+ * Attenuates 20 kHz EMI by ~48 dB while passing the DC/thermal signal.
+ * Coefficients: scipy.signal.butter(2, 5000, fs=250000, output='sos')
+ * --------------------------------------------------------------------------- */
+#define BIQUAD_B0 0.0036216815
+#define BIQUAD_B1 0.0072433630
+#define BIQUAD_B2 0.0036216815
+#define BIQUAD_A1 (-1.8226949252)
+#define BIQUAD_A2 0.8371816513
 
-/* Fourth-order Butterworth, fc=5 kHz, fs=45 kHz; rows: b0,b1,b2,a1,a2.
- * Design: scipy.signal.butter(4, 5000, fs=45000, output='sos').astype(float32)
- * Approximately 95 dB attenuation at 20 kHz in the digital model.
- * Keep the analog anti-alias filter; digital filtering cannot undo aliasing.
- */
-static const float sos[NUM_STAGES][5] = {
-    {0.00689040124f, 0.0137808025f, 0.00689040124f, -0.961245358f, 0.254816681f},
-    {1.0f, 2.0f, 1.0f, -1.22962153f, 0.605156839f},
-};
+/* One state per mux channel — persists across samples within a channel scan */
+#define NUM_CHANNELS_TOTAL (NUM_MUXES * MUX_CHANNELS_PER_CHIP)
 
 typedef struct {
-  float z1;
-  float z2;
+  double w1;
+  double w2;
 } BiquadState;
 
-/* Seed each section at its DC operating point, including section gain. */
-static void Biquad_Reset(BiquadState state[NUM_STAGES], float x) {
-  for (uint32_t i = 0; i < NUM_STAGES; i++) {
-    const float *c = sos[i];
-    float y = x * (c[0] + c[1] + c[2]) / (1.0f + c[3] + c[4]);
-    state[i].z1 = y - c[0] * x;
-    state[i].z2 = c[2] * x - c[4] * y;
-    x = y;
-  }
+static BiquadState biquad_state[NUM_CHANNELS_TOTAL];
+
+/* Reset filter state for a given channel (call before scanning that channel) */
+static void Biquad_Reset(uint8_t mux, uint8_t ch) {
+  uint16_t idx = (uint16_t)mux * MUX_CHANNELS_PER_CHIP + ch;
+  biquad_state[idx].w1 = 0.0;
+  biquad_state[idx].w2 = 0.0;
 }
 
-static float Biquad_Process(BiquadState state[NUM_STAGES], float x) {
-  for (uint32_t i = 0; i < NUM_STAGES; i++) {
-    const float *c = sos[i];
-    float y = c[0] * x + state[i].z1;
-    state[i].z1 = c[1] * x - c[3] * y + state[i].z2;
-    state[i].z2 = c[2] * x - c[4] * y;
-    x = y;
-  }
-  return x;
+/* Process one sample through the Direct Form II biquad for this channel */
+static double Biquad_Process(uint8_t mux, uint8_t ch, double x) {
+  uint16_t idx = (uint16_t)mux * MUX_CHANNELS_PER_CHIP + ch;
+  BiquadState *s = &biquad_state[idx];
+  double w0 = x - BIQUAD_A1 * s->w1 - BIQUAD_A2 * s->w2;
+  double y = BIQUAD_B0 * w0 + BIQUAD_B1 * s->w1 + BIQUAD_B2 * s->w2;
+  s->w2 = s->w1;
+  s->w1 = w0;
+  return y;
 }
-
-static bool Biquad_Average(const uint16_t samples[ADC_CAPTURE_SAMPLES], float *average) {
-  BiquadState state[NUM_STAGES];
-  Biquad_Reset(state, (float)samples[0]);
-  float sum = 0.0f;
-  uint32_t faults = 0U;
-  uint32_t count = 0U;
-
-  for (uint32_t i = 0; i < ADC_CAPTURE_SAMPLES; i++) {
-    uint16_t raw = samples[i];
-    float filtered = Biquad_Process(state, (float)raw);
-    if (!isfinite(filtered)) {
-      return false;
-    }
-    if (i < FILTER_WARMUP_SAMPLES) {
-      continue;
-    }
-    /* Preserve raw fault checks; never skip a sample in the filter. */
-    if (raw <= 1911U || raw >= 2962U) {
-      faults++;
-      continue;
-    }
-    sum += filtered;
-    count++;
-  }
-  if (faults >= 425U || count == 0U) {
-    return false;
-  }
-  *average = sum / (float)count;
-  return isfinite(*average);
-}
-/* FILTER END */
 
 ADC_HandleTypeDef hadc1;
-DMA_HandleTypeDef hdma_adc1;
-static _Alignas(uint32_t) uint16_t adc_samples[ADC_CAPTURE_SAMPLES];
-static volatile HAL_StatusTypeDef adc_capture_status;
 
 CAN_HandleTypeDef hcan;
 
@@ -154,11 +114,13 @@ static void MX_TIM4_Init(void);
 extern void initialise_monitor_handles(void);
 #endif
 
+static void ADC1_SetLongSampleTime(void);
 static HAL_StatusTypeDef MUX_WriteRaw(mux_id_t mux, uint8_t cmd);
 static HAL_StatusTypeDef MUX_Disable(mux_id_t mux);
 static void MUX_DisableAll(void);
 static HAL_StatusTypeDef MUX_SelectChannel(mux_id_t mux, uint8_t channel);
-static HAL_StatusTypeDef ADC1_Capture(void);
+static uint16_t ADC1_ReadRaw(void);
+static uint16_t ADC1_ReadRawSettled(void);
 static float SensorVoltageToTempC(float voltage);
 static void ScanAllMuxChannels(TempStatistics_t *stats, bool report);
 static void CAN_Init_Filter(void);
@@ -181,15 +143,30 @@ void delay_us(uint32_t us) {
     ;
 }
 
-// send 7 individual channels temperatures through CAN
-static HAL_StatusTypeDef CAN_SendChannelTemp(uint32_t id, uint8_t temp[7]) {
+// Wait for delivery, not just enqueue; automatic retransmission handles arbitration/errors.
+static HAL_StatusTypeDef CAN_SendFrame(void) {
   uint32_t start = HAL_GetTick();
   while (HAL_CAN_GetTxMailboxesFreeLevel(&hcan) == 0U) {
-    if ((uint32_t)(HAL_GetTick() - start) >= 10U) {
+    if ((uint32_t)(HAL_GetTick() - start) >= CAN_TX_TIMEOUT_MS)
       return HAL_TIMEOUT;
+  }
+  HAL_StatusTypeDef status = HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
+  if (status != HAL_OK)
+    return status;
+  while (HAL_CAN_IsTxMessagePending(&hcan, TxMailbox)) {
+    if ((uint32_t)(HAL_GetTick() - start) >= CAN_TX_TIMEOUT_MS) {
+      status = HAL_CAN_AbortTxRequest(&hcan, TxMailbox);
+      return status == HAL_OK ? HAL_TIMEOUT : status;
     }
   }
+  uint32_t txok = TxMailbox == CAN_TX_MAILBOX0
+                      ? CAN_TSR_TXOK0
+                      : (TxMailbox == CAN_TX_MAILBOX1 ? CAN_TSR_TXOK1 : CAN_TSR_TXOK2);
+  return (hcan.Instance->TSR & txok) ? HAL_OK : HAL_ERROR;
+}
 
+// send 7 individual channels temperatures through CAN
+static HAL_StatusTypeDef CAN_SendChannelTemp(uint32_t id, uint8_t temp[7]) {
   TxHeader.ExtId = id;
   TxHeader.IDE = CAN_ID_EXT;
   TxHeader.RTR = CAN_RTR_DATA;
@@ -210,36 +187,33 @@ static HAL_StatusTypeDef CAN_SendChannelTemp(uint32_t id, uint8_t temp[7]) {
     checksum += TxData[i];
   TxData[7] = checksum + 65;
 
-  return HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
+  return CAN_SendFrame();
 }
 
 // send the max/min temperatures to the BMS over CAN
 static HAL_StatusTypeDef CAN_SendTemperatureStatistics(TempStatistics_t *stats) {
-  if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0) { // ensure CAN mailbox is open to receive
-    TxHeader.ExtId = 0x1839F380;
-    TxHeader.IDE = CAN_ID_EXT;
-    TxHeader.RTR = CAN_RTR_DATA;
-    TxHeader.DLC = 8u;
-    TxHeader.TransmitGlobalTime = DISABLE;
+  TxHeader.ExtId = 0x1839F380;
+  TxHeader.IDE = CAN_ID_EXT;
+  TxHeader.RTR = CAN_RTR_DATA;
+  TxHeader.DLC = 8u;
+  TxHeader.TransmitGlobalTime = DISABLE;
 
-    TxData[0] = 0;
-    TxData[1] = (uint8_t)(int8_t)stats->min_temp;
-    TxData[2] = (uint8_t)(int8_t)stats->max_temp;
-    //	TxData[3] = (uint8_t) (int8_t) 67;
-    TxData[3] = (uint8_t)(int8_t)stats->max_channel;
-    TxData[4] = 1;
-    TxData[5] = 1;
-    TxData[6] = 0;
+  TxData[0] = 0;
+  TxData[1] = (uint8_t)(int8_t)stats->min_temp;
+  TxData[2] = (uint8_t)(int8_t)stats->max_temp;
+  //	TxData[3] = (uint8_t) (int8_t) 67;
+  TxData[3] = (uint8_t)(int8_t)stats->max_channel;
+  TxData[4] = 1;
+  TxData[5] = 1;
+  TxData[6] = 0;
 
-    // Checksum = sum of bytes 0–6, no seed
-    uint8_t checksum = 0u;
-    for (uint8_t i = 0u; i < 7u; i++)
-      checksum += TxData[i];
-    TxData[7] = checksum + 65;
+  // Checksum = sum of bytes 0–6, no seed
+  uint8_t checksum = 0u;
+  for (uint8_t i = 0u; i < 7u; i++)
+    checksum += TxData[i];
+  TxData[7] = checksum + 65;
 
-    return HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
-  }
-  return HAL_BUSY;
+  return CAN_SendFrame();
 }
 
 static void CAN_Init_Filter(void) {
@@ -257,6 +231,18 @@ static void CAN_Init_Filter(void) {
 
   if (HAL_CAN_ConfigFilter(&hcan, &f) != HAL_OK)
     Error_Handler();
+}
+
+static void ADC1_SetLongSampleTime(void) {
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  sConfig.Channel = ADC_CHANNEL_2;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_239CYCLES_5;
+
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK) {
+    Error_Handler();
+  }
 }
 
 static HAL_StatusTypeDef MUX_WriteRaw(mux_id_t mux, uint8_t cmd) {
@@ -302,57 +288,27 @@ static HAL_StatusTypeDef MUX_SelectChannel(mux_id_t mux, uint8_t channel) {
   return HAL_OK;
 }
 
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc) {
-  if (hadc->Instance == ADC1) {
-    HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_4);
-    adc_capture_status = HAL_OK;
-  }
-}
+static uint16_t ADC1_ReadRaw(void) {
+  uint16_t value = 0;
 
-void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc) {
-  if (hadc->Instance == ADC1) {
-    HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_4);
-    adc_capture_status = HAL_ERROR;
-  }
-}
-
-static HAL_StatusTypeDef ADC1_Capture(void) {
-  HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_4);
-  __HAL_TIM_SET_COUNTER(&htim4, 0U);
-  __HAL_TIM_CLEAR_FLAG(&htim4, TIM_FLAG_UPDATE | TIM_FLAG_CC4);
-  adc_capture_status = HAL_BUSY;
-
-  HAL_StatusTypeDef status =
-      HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_samples, ADC_CAPTURE_SAMPLES);
-  /* STM32F1 HAL_ADC_Start_DMA does not propagate HAL_DMA_Start_IT errors. */
-  if (status == HAL_OK && HAL_DMA_GetState(&hdma_adc1) != HAL_DMA_STATE_BUSY) {
-    status = HAL_ERROR;
-  }
-  if (status == HAL_OK) {
-    /* No half-buffer processing: filter only after capture completes. */
-    __HAL_DMA_DISABLE_IT(&hdma_adc1, DMA_IT_HT);
-    status = HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_4);
-    if (status == HAL_OK) {
-      uint32_t start = HAL_GetTick();
-      while (adc_capture_status == HAL_BUSY) {
-        if ((uint32_t)(HAL_GetTick() - start) >= ADC_CAPTURE_TIMEOUT_MS) {
-          status = HAL_TIMEOUT;
-          break;
-        }
-      }
-      if (status == HAL_OK) {
-        status = adc_capture_status;
-      }
-    }
-  }
-  HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_4);
-  if (HAL_ADC_Stop_DMA(&hadc1) != HAL_OK) {
-    /* Do not switch muxes if the ADC could still be converting. */
+  if (HAL_ADC_Start(&hadc1) != HAL_OK) {
     Error_Handler();
   }
-  adc_capture_status = status; /* Debugger: HAL_OK=0, HAL_ERROR=1, HAL_TIMEOUT=3. */
-  return status;
+
+  if (HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY) != HAL_OK) {
+    Error_Handler();
+  }
+
+  value = (uint16_t)HAL_ADC_GetValue(&hadc1);
+
+  if (HAL_ADC_Stop(&hadc1) != HAL_OK) {
+    Error_Handler();
+  }
+
+  return value;
 }
+
+static uint16_t ADC1_ReadRawSettled(void) { return ADC1_ReadRaw(); }
 
 // use linear interperolation to convert voltage to temperature, based on data
 // from datasheet
@@ -388,11 +344,17 @@ static float SensorVoltageToTempC(float voltage) {
   return -999.0f;
 }
 
-// Scan 90 channels: 5 ms analog settling, then 564 samples at 45 kHz.
+// finds the highest and lowest temperature of the 90 channels
+// uses 3 nested loops, the outermost to iterate through the 3 different
+// multiplexers, the next to iterate through each channel on the multiplexer,
+// and then the innermost channel samples each channel 500 times in order for an
+// average reading over a period of 2ms (longer than the duration of the noise)
 static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
   uint8_t mux;
   uint8_t ch;
-  uint8_t temps[90] = {0};
+  // 90 channels + 1 pad so the last 7-byte group stays in bounds.
+  // static: channels not yet re-read this scan are re-sent with their last value
+  static uint8_t temps[91];
   int8_t highTemps = 0;
 
   for (mux = 0; mux < NUM_MUXES; mux++) {
@@ -402,19 +364,43 @@ static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
         continue;
       }
 
+      int32_t faults = 0u;
+      uint32_t sum = 0u;
+      uint16_t count = 0u;
+
       if (MUX_SelectChannel((mux_id_t)mux, ch) != HAL_OK) {
         continue;
       }
 
       HAL_Delay(5);
 
-      float average;
+      /* Reset filter state — each channel scan starts fresh */
+      Biquad_Reset(mux, ch);
+
+      for (int i = 0; i < 500; i++) {
+        uint16_t raw = ADC1_ReadRawSettled(); // each sample takes 4us
+
+        //					double filtered = Biquad_Process(mux, ch, (double)
+        //raw); 					uint16_t raw_f = (uint16_t) (filtered + 0.5);
+        if (raw <= 1911 || raw >= 2962) { // only accept temps between 0 and 60C
+          faults++;
+          continue;
+        }
+        sum += raw;
+        count++;
+      }
+
       float temp_c;
-      if (ADC1_Capture() != HAL_OK || !Biquad_Average(adc_samples, &average)) {
+
+      // if 85% of samples are outside the acceptable range set the channel temp
+      // to 120C
+      if (faults >= 425) {
         temp_c = 80;
         highTemps++;
       } else {
-        float voltage = (3.0f * average) / 4095.0f;
+        sum = sum / count;
+
+        float voltage = (3.0f * (float)sum) / 4095.0f;
         temp_c = SensorVoltageToTempC(voltage);
 
         if (temp_c > 0 && temp_c < 85) {
@@ -434,6 +420,16 @@ static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
       int16_t idx = mux * MUX_CHANNELS_PER_CHIP + ch;
       temps[idx] = temp_c;
 
+#ifdef SHOW_CHANNEL_TEMPS
+      // re-send all 13 groups of 7 after every channel read (last group has 6)
+      for (int16_t base = 0; base < 90; base += 7) {
+        if (CAN_SendChannelTemp(DAQ_BASE_ID + base, &temps[base]) != HAL_OK) {
+          MUX_DisableAll();
+          return;
+        }
+      }
+#endif
+
       // conditional exists only for startup so that the BMS doesn't fault while
       // temps are still being collected
       if (report) {
@@ -441,11 +437,17 @@ static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
           continue;
         }
         stats->max_channel = highTemps;
-        CAN_SendTemperatureStatistics(stats);
+        if (CAN_SendTemperatureStatistics(stats) != HAL_OK) {
+          MUX_DisableAll();
+          return;
+        }
       } else {
         stats->max_temp = 20;
         stats->min_temp = 20;
-        CAN_SendTemperatureStatistics(stats);
+        if (CAN_SendTemperatureStatistics(stats) != HAL_OK) {
+          MUX_DisableAll();
+          return;
+        }
         stats->max_temp = -300;
         stats->min_temp = 300;
       }
@@ -455,22 +457,14 @@ static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
   if (highTemps >= 76) {
     stats->max_temp = 80;
     stats->min_temp = 80;
-    CAN_SendTemperatureStatistics(stats);
+    if (CAN_SendTemperatureStatistics(stats) != HAL_OK) {
+      MUX_DisableAll();
+      return;
+    }
     stats->max_temp = -300;
     stats->min_temp = 300;
   }
 
-#if SEND_CHANNEL_TEMPS
-  for (int16_t i = 0; i < 90; i += 7) {
-    uint8_t sendTemp[7] = {0}; // zero-init so remainder bytes are 0
-    for (int16_t j = 0; j < 7 && (i + j) < 90; j++) {
-      sendTemp[j] = temps[i + j];
-    }
-    if (CAN_SendChannelTemp(i + 1, sendTemp) != HAL_OK) {
-      break;
-    }
-  }
-#endif
   MUX_DisableAll();
 }
 
@@ -503,7 +497,8 @@ int main(void) {
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
 
   CAN_Init_Filter();
-  HAL_CAN_Start(&hcan);
+  if (HAL_CAN_Start(&hcan) != HAL_OK)
+    Error_Handler();
 
   if (HAL_ADCEx_Calibration_Start(&hadc1) != HAL_OK) {
     Error_Handler();
@@ -512,6 +507,7 @@ int main(void) {
   TempStatistics_t stats;
   TempStatistics_t initial;
 
+  ADC1_SetLongSampleTime();
   MUX_DisableAll();
 
   HAL_Delay(10);
@@ -529,7 +525,8 @@ int main(void) {
   initial.num_enabled = 0;
 
   // report 'fake' data upon startup
-  CAN_SendTemperatureStatistics(&initial);
+  if (CAN_SendTemperatureStatistics(&initial) != HAL_OK)
+    HAL_Delay(CAN_TX_TIMEOUT_MS);
 
   // collect statistics without reporting them to calibrate the system
   //	ScanAllMuxChannels(&stats, false);
@@ -576,7 +573,7 @@ void SystemClock_Config(void) {
   RCC_ClkInitStruct.ClockType =
       RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV2;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
@@ -605,7 +602,7 @@ static void MX_ADC1_Init(void) {
   hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
-  hadc1.Init.ExternalTrigConv = ADC_EXTERNALTRIGCONV_T4_CC4;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
   hadc1.Init.NbrOfConversion = 1;
   if (HAL_ADC_Init(&hadc1) != HAL_OK) {
@@ -627,15 +624,15 @@ static void MX_ADC1_Init(void) {
  */
 static void MX_CAN_Init(void) {
   hcan.Instance = CAN1;
-  hcan.Init.Prescaler = 4; /* 36 MHz / (4 * 18 TQ) = 500 kbit/s */
+  hcan.Init.Prescaler = 2; /* 18 MHz / (2 * (1 + 13 + 4)) = 500 kbps */
   hcan.Init.Mode = CAN_MODE_NORMAL;
   hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
   hcan.Init.TimeSeg1 = CAN_BS1_13TQ;
   hcan.Init.TimeSeg2 = CAN_BS2_4TQ;
   hcan.Init.TimeTriggeredMode = DISABLE;
-  hcan.Init.AutoBusOff = DISABLE;
+  hcan.Init.AutoBusOff = ENABLE;
   hcan.Init.AutoWakeUp = DISABLE;
-  hcan.Init.AutoRetransmission = DISABLE;
+  hcan.Init.AutoRetransmission = ENABLE;
   hcan.Init.ReceiveFifoLocked = DISABLE;
   hcan.Init.TransmitFifoPriority = DISABLE;
   if (HAL_CAN_Init(&hcan) != HAL_OK)
@@ -654,7 +651,7 @@ static void MX_SPI1_Init(void) {
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -672,12 +669,11 @@ static void MX_SPI1_Init(void) {
 static void MX_TIM4_Init(void) {
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
 
   htim4.Instance = TIM4;
   htim4.Init.Prescaler = 0;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim4.Init.Period = 72000000U / ADC_SAMPLE_RATE_HZ - 1U;
+  htim4.Init.Period = 65535;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim4.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim4) != HAL_OK) {
@@ -692,15 +688,6 @@ static void MX_TIM4_Init(void) {
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim4, &sMasterConfig) != HAL_OK) {
-    Error_Handler();
-  }
-  /* ADC1 needs an OC4REF rising edge, not a frozen compare flag.
-   * PWM2 rises at CCR4 once per period; no GPIO output is used. */
-  sConfigOC.OCMode = TIM_OCMODE_PWM2;
-  sConfigOC.Pulse = (htim4.Init.Period + 1U) / 2U;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_4) != HAL_OK) {
     Error_Handler();
   }
 }

@@ -1,0 +1,621 @@
+
+Discarded input sections
+
+ .text          0x00000000        0x0 build/HSI/node2/main.o
+ .data          0x00000000        0x0 build/HSI/node2/main.o
+ .bss           0x00000000        0x0 build/HSI/node2/main.o
+ .comment       0x00000000       0x47 build/HSI/node2/main.o
+ .text          0x00000000        0x0 build/HSI/node2/system_stm32f1xx.o
+ .data          0x00000000        0x0 build/HSI/node2/system_stm32f1xx.o
+ .bss           0x00000000        0x0 build/HSI/node2/system_stm32f1xx.o
+ .text.SystemCoreClockUpdate
+                0x00000000       0x68 build/HSI/node2/system_stm32f1xx.o
+ .rodata.APBPrescTable
+                0x00000000        0x8 build/HSI/node2/system_stm32f1xx.o
+ .comment       0x00000000       0x47 build/HSI/node2/system_stm32f1xx.o
+ .text          0x00000000        0x0 build/HSI/node2/stm32f1xx_hal.o
+ .data          0x00000000        0x0 build/HSI/node2/stm32f1xx_hal.o
+ .bss           0x00000000        0x0 build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_MspInit
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_GetTickPrio
+                0x00000000        0xc build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_SetTickFreq
+                0x00000000       0x28 build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_GetTickFreq
+                0x00000000        0xc build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_SuspendTick
+                0x00000000        0xe build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_ResumeTick
+                0x00000000        0xe build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_GetHalVersion
+                0x00000000        0x8 build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_GetREVID
+                0x00000000        0xc build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_GetDEVID
+                0x00000000       0x10 build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_GetUIDw0
+                0x00000000        0xc build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_GetUIDw1
+                0x00000000        0xc build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_GetUIDw2
+                0x00000000        0xc build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_DBGMCU_EnableDBGSleepMode
+                0x00000000       0x10 build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_DBGMCU_DisableDBGSleepMode
+                0x00000000       0x10 build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_DBGMCU_EnableDBGStopMode
+                0x00000000       0x10 build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_DBGMCU_DisableDBGStopMode
+                0x00000000       0x10 build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_DBGMCU_EnableDBGStandbyMode
+                0x00000000       0x10 build/HSI/node2/stm32f1xx_hal.o
+ .text.HAL_DBGMCU_DisableDBGStandbyMode
+                0x00000000       0x10 build/HSI/node2/stm32f1xx_hal.o
+ .comment       0x00000000       0x47 build/HSI/node2/stm32f1xx_hal.o
+ .text          0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_cortex.o
+ .data          0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_cortex.o
+ .bss           0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_cortex.o
+ .text.HAL_NVIC_EnableIRQ
+                0x00000000       0x1c build/HSI/node2/stm32f1xx_hal_cortex.o
+ .text.HAL_NVIC_DisableIRQ
+                0x00000000       0x24 build/HSI/node2/stm32f1xx_hal_cortex.o
+ .text.HAL_NVIC_SystemReset
+                0x00000000       0x24 build/HSI/node2/stm32f1xx_hal_cortex.o
+ .text.HAL_NVIC_GetPriorityGrouping
+                0x00000000       0x10 build/HSI/node2/stm32f1xx_hal_cortex.o
+ .text.HAL_NVIC_GetPriority
+                0x00000000       0x5c build/HSI/node2/stm32f1xx_hal_cortex.o
+ .text.HAL_NVIC_SetPendingIRQ
+                0x00000000       0x1c build/HSI/node2/stm32f1xx_hal_cortex.o
+ .text.HAL_NVIC_GetPendingIRQ
+                0x00000000       0x24 build/HSI/node2/stm32f1xx_hal_cortex.o
+ .text.HAL_NVIC_ClearPendingIRQ
+                0x00000000       0x1c build/HSI/node2/stm32f1xx_hal_cortex.o
+ .text.HAL_NVIC_GetActive
+                0x00000000       0x24 build/HSI/node2/stm32f1xx_hal_cortex.o
+ .text.HAL_SYSTICK_CLKSourceConfig
+                0x00000000       0x16 build/HSI/node2/stm32f1xx_hal_cortex.o
+ .text.HAL_SYSTICK_Callback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_cortex.o
+ .text.HAL_SYSTICK_IRQHandler
+                0x00000000        0x8 build/HSI/node2/stm32f1xx_hal_cortex.o
+ .comment       0x00000000       0x47 build/HSI/node2/stm32f1xx_hal_cortex.o
+ .text          0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_rcc.o
+ .data          0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_rcc.o
+ .bss           0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_rcc.o
+ .text.HAL_RCC_MCOConfig
+                0x00000000       0x4c build/HSI/node2/stm32f1xx_hal_rcc.o
+ .text.HAL_RCC_EnableCSS
+                0x00000000        0xc build/HSI/node2/stm32f1xx_hal_rcc.o
+ .text.HAL_RCC_DisableCSS
+                0x00000000        0xc build/HSI/node2/stm32f1xx_hal_rcc.o
+ .text.HAL_RCC_GetHCLKFreq
+                0x00000000        0xc build/HSI/node2/stm32f1xx_hal_rcc.o
+ .text.HAL_RCC_GetPCLK1Freq
+                0x00000000       0x20 build/HSI/node2/stm32f1xx_hal_rcc.o
+ .text.HAL_RCC_GetPCLK2Freq
+                0x00000000       0x20 build/HSI/node2/stm32f1xx_hal_rcc.o
+ .text.HAL_RCC_GetOscConfig
+                0x00000000       0x6c build/HSI/node2/stm32f1xx_hal_rcc.o
+ .text.HAL_RCC_GetClockConfig
+                0x00000000       0x3c build/HSI/node2/stm32f1xx_hal_rcc.o
+ .text.HAL_RCC_CSSCallback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_rcc.o
+ .text.HAL_RCC_NMI_IRQHandler
+                0x00000000       0x18 build/HSI/node2/stm32f1xx_hal_rcc.o
+ .comment       0x00000000       0x47 build/HSI/node2/stm32f1xx_hal_rcc.o
+ .text          0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_rcc_ex.o
+ .data          0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_rcc_ex.o
+ .bss           0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_rcc_ex.o
+ .text.HAL_RCCEx_PeriphCLKConfig
+                0x00000000       0xf4 build/HSI/node2/stm32f1xx_hal_rcc_ex.o
+ .text.HAL_RCCEx_GetPeriphCLKConfig
+                0x00000000       0x24 build/HSI/node2/stm32f1xx_hal_rcc_ex.o
+ .text.HAL_RCCEx_GetPeriphCLKFreq
+                0x00000000       0xbc build/HSI/node2/stm32f1xx_hal_rcc_ex.o
+ .rodata.aPredivFactorTable.0
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_rcc_ex.o
+ .rodata.aPLLMULFactorTable.1
+                0x00000000       0x10 build/HSI/node2/stm32f1xx_hal_rcc_ex.o
+ .comment       0x00000000       0x47 build/HSI/node2/stm32f1xx_hal_rcc_ex.o
+ .ARM.attributes
+                0x00000000       0x2d build/HSI/node2/stm32f1xx_hal_rcc_ex.o
+ .text          0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_gpio.o
+ .data          0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_gpio.o
+ .bss           0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_gpio.o
+ .text.HAL_GPIO_ReadPin
+                0x00000000        0xc build/HSI/node2/stm32f1xx_hal_gpio.o
+ .text.HAL_GPIO_WritePin
+                0x00000000        0xa build/HSI/node2/stm32f1xx_hal_gpio.o
+ .text.HAL_GPIO_TogglePin
+                0x00000000       0x12 build/HSI/node2/stm32f1xx_hal_gpio.o
+ .text.HAL_GPIO_LockPin
+                0x00000000       0x2a build/HSI/node2/stm32f1xx_hal_gpio.o
+ .text.HAL_GPIO_EXTI_Callback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_gpio.o
+ .text.HAL_GPIO_EXTI_IRQHandler
+                0x00000000       0x18 build/HSI/node2/stm32f1xx_hal_gpio.o
+ .comment       0x00000000       0x47 build/HSI/node2/stm32f1xx_hal_gpio.o
+ .text          0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_can.o
+ .data          0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_can.o
+ .bss           0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_MspInit
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_MspDeInit
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_RequestSleep
+                0x00000000       0x24 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_WakeUp
+                0x00000000       0x50 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_IsSleepActive
+                0x00000000       0x16 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_AbortTxRequest
+                0x00000000       0x48 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_GetTxMailboxesFreeLevel
+                0x00000000       0x28 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_IsTxMessagePending
+                0x00000000       0x22 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_GetTxTimestamp
+                0x00000000       0x24 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_ActivateNotification
+                0x00000000       0x22 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_DeactivateNotification
+                0x00000000       0x24 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_TxMailbox0CompleteCallback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_TxMailbox1CompleteCallback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_TxMailbox2CompleteCallback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_TxMailbox0AbortCallback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_TxMailbox1AbortCallback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_TxMailbox2AbortCallback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_RxFifo0MsgPendingCallback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_RxFifo0FullCallback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_RxFifo1MsgPendingCallback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_RxFifo1FullCallback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_SleepCallback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_WakeUpFromRxMsgCallback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_ErrorCallback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_IRQHandler
+                0x00000000      0x20e build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_GetState
+                0x00000000       0x26 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_GetError
+                0x00000000        0x4 build/HSI/node2/stm32f1xx_hal_can.o
+ .text.HAL_CAN_ResetError
+                0x00000000       0x1e build/HSI/node2/stm32f1xx_hal_can.o
+ .comment       0x00000000       0x47 build/HSI/node2/stm32f1xx_hal_can.o
+ .text          0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_flash.o
+ .data          0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_flash.o
+ .bss           0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_flash.o
+ .text.HAL_FLASH_Program_IT
+                0x00000000       0x4c build/HSI/node2/stm32f1xx_hal_flash.o
+ .text.HAL_FLASH_EndOfOperationCallback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_flash.o
+ .text.HAL_FLASH_OperationErrorCallback
+                0x00000000        0x2 build/HSI/node2/stm32f1xx_hal_flash.o
+ .text.HAL_FLASH_IRQHandler
+                0x00000000      0x10c build/HSI/node2/stm32f1xx_hal_flash.o
+ .text.HAL_FLASH_OB_Unlock
+                0x00000000       0x24 build/HSI/node2/stm32f1xx_hal_flash.o
+ .text.HAL_FLASH_OB_Lock
+                0x00000000       0x14 build/HSI/node2/stm32f1xx_hal_flash.o
+ .text.HAL_FLASH_OB_Launch
+                0x00000000        0x4 build/HSI/node2/stm32f1xx_hal_flash.o
+ .comment       0x00000000       0x47 build/HSI/node2/stm32f1xx_hal_flash.o
+ .text          0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_flash_ex.o
+ .data          0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_flash_ex.o
+ .bss           0x00000000        0x0 build/HSI/node2/stm32f1xx_hal_flash_ex.o
+ .text.FLASH_OB_RDP_LevelConfig
+                0x00000000       0x60 build/HSI/node2/stm32f1xx_hal_flash_ex.o
+ .text.HAL_FLASHEx_OBErase
+                0x00000000       0x5c build/HSI/node2/stm32f1xx_hal_flash_ex.o
+ .text.HAL_FLASHEx_OBProgram
+                0x00000000      0x1e0 build/HSI/node2/stm32f1xx_hal_flash_ex.o
+ .text.HAL_FLASHEx_OBGetConfig
+                0x00000000       0x28 build/HSI/node2/stm32f1xx_hal_flash_ex.o
+ .text.HAL_FLASHEx_OBGetUserData
+                0x00000000       0x1c build/HSI/node2/stm32f1xx_hal_flash_ex.o
+ .text.HAL_FLASHEx_Erase_IT
+                0x00000000       0x54 build/HSI/node2/stm32f1xx_hal_flash_ex.o
+ .comment       0x00000000       0x47 build/HSI/node2/stm32f1xx_hal_flash_ex.o
+ .text          0x00000000       0x14 build/HSI/node2/startup.o
+ .data          0x00000000        0x0 build/HSI/node2/startup.o
+ .bss           0x00000000        0x0 build/HSI/node2/startup.o
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+RAM              0x20000000         0x00005000         xrw
+FLASH            0x08000000         0x00004000         xr
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD build/HSI/node2/main.o
+LOAD build/HSI/node2/system_stm32f1xx.o
+LOAD build/HSI/node2/stm32f1xx_hal.o
+LOAD build/HSI/node2/stm32f1xx_hal_cortex.o
+LOAD build/HSI/node2/stm32f1xx_hal_rcc.o
+LOAD build/HSI/node2/stm32f1xx_hal_rcc_ex.o
+LOAD build/HSI/node2/stm32f1xx_hal_gpio.o
+LOAD build/HSI/node2/stm32f1xx_hal_can.o
+LOAD build/HSI/node2/stm32f1xx_hal_flash.o
+LOAD build/HSI/node2/stm32f1xx_hal_flash_ex.o
+LOAD build/HSI/node2/startup.o
+LOAD /Applications/ArmGNUToolchain/15.3.rel2/arm-none-eabi/bin/../lib/gcc/arm-none-eabi/15.3.1/thumb/v7-m/nofp/libgcc.a
+                0x20005000                        _estack = (ORIGIN (RAM) + LENGTH (RAM))
+                0x00000000                        _Min_Heap_Size = 0x0
+                0x00000400                        _Min_Stack_Size = 0x400
+
+.isr_vector     0x08000000      0x10c
+                0x08000000                        . = ALIGN (0x4)
+ *(.isr_vector)
+ .isr_vector    0x08000000      0x10c build/HSI/node2/startup.o
+                0x08000000                g_pfnVectors
+                0x0800010c                        . = ALIGN (0x4)
+
+.text           0x0800010c     0x18d8
+                0x0800010c                        . = ALIGN (0x4)
+ *(.text)
+ *(.text*)
+ .text.send_status
+                0x0800010c       0x44 build/HSI/node2/main.o
+ .text.jump_to_application
+                0x08000150       0x74 build/HSI/node2/main.o
+ .text.crc32_flash.constprop.0
+                0x080001c4       0x3c build/HSI/node2/main.o
+ .text.application_is_valid
+                0x08000200       0x54 build/HSI/node2/main.o
+ .text.memset   0x08000254       0x10 build/HSI/node2/main.o
+                0x08000254                memset
+ .text.memcpy   0x08000264       0x16 build/HSI/node2/main.o
+                0x08000264                memcpy
+ *fill*         0x0800027a        0x2 
+ .text.startup.main
+                0x0800027c      0x5cc build/HSI/node2/main.o
+                0x0800027c                main
+ .text.HAL_MspInit
+                0x08000848       0x44 build/HSI/node2/main.o
+                0x08000848                HAL_MspInit
+ .text.HAL_CAN_MspInit
+                0x0800088c       0x70 build/HSI/node2/main.o
+                0x0800088c                HAL_CAN_MspInit
+ .text.HAL_CAN_MspDeInit
+                0x080008fc       0x2c build/HSI/node2/main.o
+                0x080008fc                HAL_CAN_MspDeInit
+ .text.SysTick_Handler
+                0x08000928        0x4 build/HSI/node2/main.o
+                0x08000928                SysTick_Handler
+ .text.__libc_init_array
+                0x0800092c        0x2 build/HSI/node2/main.o
+                0x0800092c                __libc_init_array
+ .text.SystemInit
+                0x0800092e        0x2 build/HSI/node2/system_stm32f1xx.o
+                0x0800092e                SystemInit
+ .text.HAL_MspDeInit
+                0x08000930        0x2 build/HSI/node2/stm32f1xx_hal.o
+                0x08000930                HAL_MspDeInit
+ *fill*         0x08000932        0x2 
+ .text.HAL_DeInit
+                0x08000934       0x20 build/HSI/node2/stm32f1xx_hal.o
+                0x08000934                HAL_DeInit
+ .text.HAL_InitTick
+                0x08000954       0x48 build/HSI/node2/stm32f1xx_hal.o
+                0x08000954                HAL_InitTick
+ .text.HAL_Init
+                0x0800099c       0x24 build/HSI/node2/stm32f1xx_hal.o
+                0x0800099c                HAL_Init
+ .text.HAL_IncTick
+                0x080009c0       0x18 build/HSI/node2/stm32f1xx_hal.o
+                0x080009c0                HAL_IncTick
+ .text.HAL_GetTick
+                0x080009d8        0xc build/HSI/node2/stm32f1xx_hal.o
+                0x080009d8                HAL_GetTick
+ .text.HAL_Delay
+                0x080009e4       0x24 build/HSI/node2/stm32f1xx_hal.o
+                0x080009e4                HAL_Delay
+ .text.HAL_NVIC_SetPriorityGrouping
+                0x08000a08       0x24 build/HSI/node2/stm32f1xx_hal_cortex.o
+                0x08000a08                HAL_NVIC_SetPriorityGrouping
+ .text.HAL_NVIC_SetPriority
+                0x08000a2c       0x5c build/HSI/node2/stm32f1xx_hal_cortex.o
+                0x08000a2c                HAL_NVIC_SetPriority
+ .text.HAL_SYSTICK_Config
+                0x08000a88       0x28 build/HSI/node2/stm32f1xx_hal_cortex.o
+                0x08000a88                HAL_SYSTICK_Config
+ .text.HAL_RCC_DeInit
+                0x08000ab0       0xd8 build/HSI/node2/stm32f1xx_hal_rcc.o
+                0x08000ab0                HAL_RCC_DeInit
+ .text.HAL_RCC_OscConfig
+                0x08000b88      0x33c build/HSI/node2/stm32f1xx_hal_rcc.o
+                0x08000b88                HAL_RCC_OscConfig
+ .text.HAL_RCC_GetSysClockFreq
+                0x08000ec4       0x58 build/HSI/node2/stm32f1xx_hal_rcc.o
+                0x08000ec4                HAL_RCC_GetSysClockFreq
+ .text.HAL_RCC_ClockConfig
+                0x08000f1c      0x138 build/HSI/node2/stm32f1xx_hal_rcc.o
+                0x08000f1c                HAL_RCC_ClockConfig
+ .text.HAL_GPIO_Init
+                0x08001054      0x1a8 build/HSI/node2/stm32f1xx_hal_gpio.o
+                0x08001054                HAL_GPIO_Init
+ .text.HAL_GPIO_DeInit
+                0x080011fc       0xdc build/HSI/node2/stm32f1xx_hal_gpio.o
+                0x080011fc                HAL_GPIO_DeInit
+ .text.HAL_CAN_Init
+                0x080012d8       0xf6 build/HSI/node2/stm32f1xx_hal_can.o
+                0x080012d8                HAL_CAN_Init
+ .text.HAL_CAN_ConfigFilter
+                0x080013ce       0xdc build/HSI/node2/stm32f1xx_hal_can.o
+                0x080013ce                HAL_CAN_ConfigFilter
+ .text.HAL_CAN_Start
+                0x080014aa       0x56 build/HSI/node2/stm32f1xx_hal_can.o
+                0x080014aa                HAL_CAN_Start
+ .text.HAL_CAN_Stop
+                0x08001500       0x5c build/HSI/node2/stm32f1xx_hal_can.o
+                0x08001500                HAL_CAN_Stop
+ .text.HAL_CAN_DeInit
+                0x0800155c       0x28 build/HSI/node2/stm32f1xx_hal_can.o
+                0x0800155c                HAL_CAN_DeInit
+ .text.HAL_CAN_AddTxMessage
+                0x08001584       0x92 build/HSI/node2/stm32f1xx_hal_can.o
+                0x08001584                HAL_CAN_AddTxMessage
+ .text.HAL_CAN_GetRxMessage
+                0x08001616      0x106 build/HSI/node2/stm32f1xx_hal_can.o
+                0x08001616                HAL_CAN_GetRxMessage
+ .text.HAL_CAN_GetRxFifoFillLevel
+                0x0800171c       0x1e build/HSI/node2/stm32f1xx_hal_can.o
+                0x0800171c                HAL_CAN_GetRxFifoFillLevel
+ *fill*         0x0800173a        0x2 
+ .text.FLASH_SetErrorCode
+                0x0800173c       0x50 build/HSI/node2/stm32f1xx_hal_flash.o
+ .text.HAL_FLASH_Unlock
+                0x0800178c       0x24 build/HSI/node2/stm32f1xx_hal_flash.o
+                0x0800178c                HAL_FLASH_Unlock
+ .text.HAL_FLASH_Lock
+                0x080017b0       0x14 build/HSI/node2/stm32f1xx_hal_flash.o
+                0x080017b0                HAL_FLASH_Lock
+ .text.HAL_FLASH_GetError
+                0x080017c4        0xc build/HSI/node2/stm32f1xx_hal_flash.o
+                0x080017c4                HAL_FLASH_GetError
+ .text.FLASH_WaitForLastOperation
+                0x080017d0       0x54 build/HSI/node2/stm32f1xx_hal_flash.o
+                0x080017d0                FLASH_WaitForLastOperation
+ .text.HAL_FLASH_Program
+                0x08001824       0xa8 build/HSI/node2/stm32f1xx_hal_flash.o
+                0x08001824                HAL_FLASH_Program
+ .text.FLASH_PageErase
+                0x080018cc       0x24 build/HSI/node2/stm32f1xx_hal_flash_ex.o
+                0x080018cc                FLASH_PageErase
+ .text.HAL_FLASHEx_Erase
+                0x080018f0       0xa8 build/HSI/node2/stm32f1xx_hal_flash_ex.o
+                0x080018f0                HAL_FLASHEx_Erase
+ .text.Reset_Handler
+                0x08001998       0x48 build/HSI/node2/startup.o
+                0x08001998                Reset_Handler
+ .text.Default_Handler
+                0x080019e0        0x2 build/HSI/node2/startup.o
+                0x080019e0                USBWakeUp_IRQHandler
+                0x080019e0                EXTI2_IRQHandler
+                0x080019e0                DebugMon_Handler
+                0x080019e0                TIM1_CC_IRQHandler
+                0x080019e0                HardFault_Handler
+                0x080019e0                PVD_IRQHandler
+                0x080019e0                PendSV_Handler
+                0x080019e0                NMI_Handler
+                0x080019e0                EXTI3_IRQHandler
+                0x080019e0                EXTI0_IRQHandler
+                0x080019e0                I2C2_EV_IRQHandler
+                0x080019e0                UsageFault_Handler
+                0x080019e0                ADC1_2_IRQHandler
+                0x080019e0                SPI1_IRQHandler
+                0x080019e0                TAMPER_IRQHandler
+                0x080019e0                DMA1_Channel4_IRQHandler
+                0x080019e0                USART3_IRQHandler
+                0x080019e0                RTC_IRQHandler
+                0x080019e0                DMA1_Channel7_IRQHandler
+                0x080019e0                CAN1_RX1_IRQHandler
+                0x080019e0                TIM4_IRQHandler
+                0x080019e0                I2C1_EV_IRQHandler
+                0x080019e0                DMA1_Channel6_IRQHandler
+                0x080019e0                TIM3_IRQHandler
+                0x080019e0                RCC_IRQHandler
+                0x080019e0                TIM1_TRG_COM_IRQHandler
+                0x080019e0                DMA1_Channel1_IRQHandler
+                0x080019e0                Default_Handler
+                0x080019e0                EXTI15_10_IRQHandler
+                0x080019e0                EXTI9_5_IRQHandler
+                0x080019e0                SPI2_IRQHandler
+                0x080019e0                MemManage_Handler
+                0x080019e0                SVC_Handler
+                0x080019e0                DMA1_Channel5_IRQHandler
+                0x080019e0                EXTI4_IRQHandler
+                0x080019e0                USB_LP_CAN1_RX0_IRQHandler
+                0x080019e0                USB_HP_CAN1_TX_IRQHandler
+                0x080019e0                DMA1_Channel3_IRQHandler
+                0x080019e0                TIM1_UP_IRQHandler
+                0x080019e0                WWDG_IRQHandler
+                0x080019e0                TIM2_IRQHandler
+                0x080019e0                TIM1_BRK_IRQHandler
+                0x080019e0                EXTI1_IRQHandler
+                0x080019e0                USART2_IRQHandler
+                0x080019e0                I2C2_ER_IRQHandler
+                0x080019e0                DMA1_Channel2_IRQHandler
+                0x080019e0                CAN1_SCE_IRQHandler
+                0x080019e0                FLASH_IRQHandler
+                0x080019e0                BusFault_Handler
+                0x080019e0                USART1_IRQHandler
+                0x080019e0                I2C1_ER_IRQHandler
+                0x080019e0                RTC_Alarm_IRQHandler
+ *(.glue_7)
+ .glue_7        0x080019e2        0x0 linker stubs
+ *(.glue_7t)
+ .glue_7t       0x080019e2        0x0 linker stubs
+ *(.eh_frame)
+ *(.init)
+ *(.fini)
+                0x080019e4                        . = ALIGN (0x4)
+ *fill*         0x080019e2        0x2 
+                0x080019e4                        _etext = .
+
+.vfp11_veneer   0x080019e4        0x0
+ .vfp11_veneer  0x080019e4        0x0 linker stubs
+
+.v4_bx          0x080019e4        0x0
+ .v4_bx         0x080019e4        0x0 linker stubs
+
+.iplt           0x080019e4        0x0
+ .iplt          0x080019e4        0x0 build/HSI/node2/main.o
+
+.rodata         0x080019e4       0x24
+                0x080019e4                        . = ALIGN (0x4)
+ *(.rodata)
+ *(.rodata*)
+ .rodata.AHBPrescTable
+                0x080019e4       0x10 build/HSI/node2/system_stm32f1xx.o
+                0x080019e4                AHBPrescTable
+ .rodata.aPredivFactorTable.0
+                0x080019f4        0x2 build/HSI/node2/stm32f1xx_hal_rcc.o
+ .rodata.aPLLMULFactorTable.1
+                0x080019f6       0x10 build/HSI/node2/stm32f1xx_hal_rcc.o
+                0x08001a08                        . = ALIGN (0x4)
+ *fill*         0x08001a06        0x2 
+
+.rel.dyn        0x08001a08        0x0
+ .rel.iplt      0x08001a08        0x0 build/HSI/node2/main.o
+
+.ARM.extab
+ *(.ARM.extab* .gnu.linkonce.armextab.*)
+
+.ARM            0x08001a08        0x0
+                0x08001a08                        __exidx_start = .
+ *(.ARM.exidx*)
+                0x08001a08                        __exidx_end = .
+
+.preinit_array  0x08001a08        0x0
+                [!provide]                        PROVIDE (__preinit_array_start = .)
+ *(.preinit_array*)
+                [!provide]                        PROVIDE (__preinit_array_end = .)
+
+.init_array     0x08001a08        0x0
+                [!provide]                        PROVIDE (__init_array_start = .)
+ *(SORT_BY_NAME(.init_array.*))
+ *(.init_array*)
+                [!provide]                        PROVIDE (__init_array_end = .)
+
+.fini_array     0x08001a08        0x0
+                [!provide]                        PROVIDE (__fini_array_start = .)
+ *(SORT_BY_NAME(.fini_array.*))
+ *(.fini_array*)
+                [!provide]                        PROVIDE (__fini_array_end = .)
+                0x08001a08                        _sidata = LOADADDR (.data)
+
+.data           0x20000000        0xc load address 0x08001a08
+                0x20000000                        . = ALIGN (0x4)
+                0x20000000                        _sdata = .
+ *(.data)
+ *(.data*)
+ .data.SystemCoreClock
+                0x20000000        0x4 build/HSI/node2/system_stm32f1xx.o
+                0x20000000                SystemCoreClock
+ .data.uwTickFreq
+                0x20000004        0x1 build/HSI/node2/stm32f1xx_hal.o
+                0x20000004                uwTickFreq
+ *fill*         0x20000005        0x3 
+ .data.uwTickPrio
+                0x20000008        0x4 build/HSI/node2/stm32f1xx_hal.o
+                0x20000008                uwTickPrio
+ *(.RamFunc)
+ *(.RamFunc*)
+                0x2000000c                        . = ALIGN (0x4)
+                0x2000000c                        _edata = .
+
+.igot.plt       0x2000000c        0x0 load address 0x08001a14
+ .igot.plt      0x2000000c        0x0 build/HSI/node2/main.o
+
+.bss            0x20000010      0x108 load address 0x08001a14
+                0x20000010                        . = ALIGN (0x4)
+                0x20000010                        _sbss = .
+                0x20000010                        __bss_start__ = _sbss
+ *(.bss)
+ *(.bss*)
+ .bss.window_mask
+                0x20000010        0x4 build/HSI/node2/main.o
+ .bss.window_data
+                0x20000014       0xa0 build/HSI/node2/main.o
+ .bss.deadline  0x200000b4        0x4 build/HSI/node2/main.o
+ .bss.has_pending_byte
+                0x200000b8        0x1 build/HSI/node2/main.o
+ .bss.pending_byte
+                0x200000b9        0x1 build/HSI/node2/main.o
+ .bss.expected_sequence
+                0x200000ba        0x2 build/HSI/node2/main.o
+ .bss.bytes_written
+                0x200000bc        0x4 build/HSI/node2/main.o
+ .bss.expected_crc
+                0x200000c0        0x4 build/HSI/node2/main.o
+ .bss.image_size
+                0x200000c4        0x4 build/HSI/node2/main.o
+ .bss.rx_state  0x200000c8        0x1 build/HSI/node2/main.o
+ *fill*         0x200000c9        0x3 
+ .bss.hcan      0x200000cc       0x28 build/HSI/node2/main.o
+ .bss.uwTick    0x200000f4        0x4 build/HSI/node2/stm32f1xx_hal.o
+                0x200000f4                uwTick
+ .bss.pFlash    0x200000f8       0x20 build/HSI/node2/stm32f1xx_hal_flash.o
+                0x200000f8                pFlash
+ *(COMMON)
+                0x20000118                        . = ALIGN (0x4)
+                0x20000118                        _ebss = .
+                0x20000118                        __bss_end__ = _ebss
+
+._user_heap_stack
+                0x20000118      0x400 load address 0x08001a14
+                0x20000118                        . = ALIGN (0x8)
+                [!provide]                        PROVIDE (end = .)
+                [!provide]                        PROVIDE (_end = .)
+                0x20000118                        . = (. + _Min_Heap_Size)
+                0x20000518                        . = (. + _Min_Stack_Size)
+ *fill*         0x20000118      0x400 
+                0x20000518                        . = ALIGN (0x8)
+
+/DISCARD/
+ *(.comment)
+ *(.note*)
+
+.ARM.attributes
+                0x00000000       0x2b
+ *(.ARM.attributes)
+ .ARM.attributes
+                0x00000000       0x2d build/HSI/node2/main.o
+ .ARM.attributes
+                0x0000002d       0x2d build/HSI/node2/system_stm32f1xx.o
+ .ARM.attributes
+                0x0000005a       0x2d build/HSI/node2/stm32f1xx_hal.o
+ .ARM.attributes
+                0x00000087       0x2d build/HSI/node2/stm32f1xx_hal_cortex.o
+ .ARM.attributes
+                0x000000b4       0x2d build/HSI/node2/stm32f1xx_hal_rcc.o
+ .ARM.attributes
+                0x000000e1       0x2d build/HSI/node2/stm32f1xx_hal_gpio.o
+ .ARM.attributes
+                0x0000010e       0x2d build/HSI/node2/stm32f1xx_hal_can.o
+ .ARM.attributes
+                0x0000013b       0x2d build/HSI/node2/stm32f1xx_hal_flash.o
+ .ARM.attributes
+                0x00000168       0x2d build/HSI/node2/stm32f1xx_hal_flash_ex.o
+ .ARM.attributes
+                0x00000195       0x21 build/HSI/node2/startup.o
+OUTPUT(build/HSI/node2/stm32f103-can-bootloader.elf elf32-littlearm)
+LOAD linker stubs
