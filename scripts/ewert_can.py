@@ -111,7 +111,7 @@ class EwertBus:
                 self.partial.clear()
                 try:
                     frame = decode_frame(packet)
-                except ValueError, IndexError, UnicodeError:
+                except (ValueError, IndexError, UnicodeError):
                     self.damaged()
                     continue
                 if frame is not None:
