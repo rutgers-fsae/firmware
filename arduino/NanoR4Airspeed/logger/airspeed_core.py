@@ -11,7 +11,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-QUANTUM_PA = 2 * 6894.757 / (0.8 * 16383)
+from airspeed_sensors import MS4525DO
+
+QUANTUM_PA = MS4525DO.quantum_pa
 MAX_RATE = 1000
 FIELDS = [
     "received_utc",
@@ -36,6 +38,7 @@ FIELDS = [
     "requested_rate_hz",
     "missing_serial_samples",
     "device_skipped_slots",
+    "sensor_model",
 ]
 LEGACY = re.compile(r"^Received 2 bytes; raw = (\d+); status = ([0-3])\b")
 
@@ -62,20 +65,20 @@ def validate_rate(value):
     return int(text)
 
 
-def pressure(raw):
-    return ((raw - 0.1 * 16383) / (0.8 * 16383) * 2 - 1) * 6894.757
+def pressure(raw, sensor=MS4525DO):
+    return sensor.pressure(raw)
 
 
-def calculate(raw, status, calibration, density=1.225):
+def calculate(raw, status, calibration, density=1.225, sensor=MS4525DO):
     if status != 0:
         return None, None, None, "stale" if status == 2 else "sensor_error"
-    if not 1638.3 <= raw <= 14744.7:
+    if not sensor.in_range(raw):
         return None, None, None, "out_of_range"
-    pa = pressure(raw)
+    pa = pressure(raw, sensor)
     if calibration is None:
         return pa, None, None, "needs_zero"
     dp = pa - calibration["zero_offset_pa"]
-    band = max(3 * calibration["noise_std_pa"], 2 * QUANTUM_PA)
+    band = max(3 * calibration["noise_std_pa"], 2 * sensor.quantum_pa)
     if abs(dp) <= band:
         return pa, dp, 0.0, "within_zero_noise"
     if dp < 0:
@@ -173,17 +176,18 @@ class DeviceClock:
 class ZeroCalibration:
     """At least 20 fresh samples spanning at least five seconds."""
 
-    def __init__(self, now=None):
+    def __init__(self, now=None, sensor=MS4525DO):
         self.started = time.monotonic() if now is None else now
         self.samples = []
+        self.sensor = sensor
 
     def add(self, raw, status, now=None):
         now = time.monotonic() if now is None else now
         if now - self.started > 45:
             raise ValueError("Zero timed out. Wait for fresh readings, then try again.")
-        if status != 0 or not 1638.3 <= raw <= 14744.7:
+        if status != 0 or not self.sensor.in_range(raw):
             return None
-        self.samples.append(pressure(raw))
+        self.samples.append(pressure(raw, self.sensor))
         if len(self.samples) < 20 or now - self.started < 5:
             return None
         noise = statistics.stdev(self.samples)

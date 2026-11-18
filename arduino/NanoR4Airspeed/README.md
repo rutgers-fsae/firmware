@@ -1,8 +1,48 @@
 # Airspeed recorder: Raspberry Pi or Nano R4
 
-Reads a Matek ASPD-4525 differential-pressure sensor directly on a Raspberry Pi Zero 2 W with a headless Python logger, or with an Arduino Nano R4 over USB in a Python/Tk desktop application. The GUI supports named runs, 1–1,000 requested reads/s, zero calibration, live pressure/airspeed plots, and a saved-run dropdown.
+Reads a Matek ASPD-4525 or Sensirion SDP811-500Pa directly on a Raspberry Pi with a headless Python logger. The Arduino Nano R4 and Python/Tk GUI path uses the Matek sensor. The GUI supports named runs, 1–1,000 requested reads/s, zero calibration, live pressure/airspeed plots, and a saved-run dropdown.
 
 This is a bench acquisition and analysis tool. It has not been validated as a vehicle safety/control system or calibrated against a reference airspeed instrument. The GUI calculates standard-density airspeed; it does not measure atmospheric density or ground speed.
+
+## SDP811-500Pa on the Pi
+
+Select `--sensor sdp811-500pa` for the new sensor. With power disconnected,
+connect sensor VDD to Pi physical pin 1 (3.3 V), GND to pin 6, SDA to pin 3,
+and SCL to pin 5. From the sensor's connector side, logo upright and pins
+below it, the left-to-right order is SDA, GND, VDD, SCL (marked 1).
+Use its matching 2 mm connector. The Pi 3B's SDA/SCL already have pull-ups to
+3.3 V; no additional 4.7 kohm resistors or level shifter are needed for this
+short 3.3 V connection. Do not reuse the old Arduino's 5 V pull-ups.
+
+The driver defaults to `0x26`, starts continuous differential-pressure
+measurement with `0x3615`, waits 20 ms, validates all three CRCs in each
+nine-byte frame, and stops measurement with `0x3FF9` on exit. It requires
+the 500 Pa scale of 60 counts/Pa. Pressure is signed raw / 60 Pa, with a
+calibrated range of +/-500 Pa. See the [Sensirion datasheet](https://sensirion.com/resource/datasheet/sdp800-d/).
+
+The normal installer also copies the new driver. It preserves existing settings;
+for an SDP811 service set these entries in `/etc/default/airspeed-logger`:
+
+```sh
+AIRSPEED_SENSOR=sdp811-500pa
+AIRSPEED_ADDRESS=0x26
+AIRSPEED_CALIBRATION=/var/lib/airspeed/zero-sdp811.json
+```
+
+Stop the service before a manual zero or recording. With both pressure ports
+at equal pressure in still air, run the installed logger with
+`--sensor sdp811-500pa --zero`, then restart the service. CLI defaults also use
+the separate SDP811 zero file. Old MS4525DO zeros are rejected for this model;
+new zeros include the sensor model. CSVs append `sensor_model`, and the SDP811
+zero-noise floor uses its 1/60 Pa count resolution. CRC/scale failures leave
+measurements blank and count toward the existing three-failure restart limit.
+
+The existing airspeed equation, CSV logging and dashboard zero control are
+unchanged. At the default density of 1.225 kg/m^3, +500 Pa corresponds to
+about 103 km/h (64 mph) of ideal pitot airspeed. Out-of-range samples and
+negative corrected pressure do not produce an airspeed value. Bench validation
+is still required. The remaining instructions describe the original Matek
+setup, which remains the default for existing deployments.
 
 ## Raspberry Pi Zero 2 W (alongside VectorNav)
 
