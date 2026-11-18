@@ -23,7 +23,7 @@ import os
 import time
 
 os.environ.setdefault("BLINKA_FT232H", "1")  # must be set before importing board
-import board  # noqa: E402
+import board  # noqa: E402  # ty: ignore[unresolved-import]  (adafruit-blinka is optional hardware support)
 
 p = argparse.ArgumentParser()
 p.add_argument("--addr", type=lambda s: int(s, 0), default=0x08)

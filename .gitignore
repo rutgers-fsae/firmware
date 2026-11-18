@@ -10,3 +10,5 @@ node_modules/
 .ruff_cache/
 .zig-cache/
 zig-out/
+*.py[cod]
+stm32f103-can-bootloader/build/

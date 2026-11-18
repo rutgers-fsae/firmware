@@ -381,7 +381,8 @@ static void ScanAllMuxChannels(TempStatistics_t *stats, bool report) {
         uint16_t raw = ADC1_ReadRawSettled(); // each sample takes 4us
 
         //					double filtered = Biquad_Process(mux, ch, (double)
-        //raw); 					uint16_t raw_f = (uint16_t) (filtered + 0.5);
+        // raw); 					uint16_t raw_f = (uint16_t) (filtered +
+        // 0.5);
         if (raw <= 1911 || raw >= 2962) { // only accept temps between 0 and 60C
           faults++;
           continue;
